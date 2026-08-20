@@ -30,6 +30,31 @@ If you are on a Claude Pro or Max subscription, the dollar amounts shown are the
 actually billed. Your subscription price is fixed. Treat the number as a measure
 of how much compute you extracted, not as an invoice.
 
+## Development
+
+Requires Node 20 or newer.
+
+```bash
+npm install
+
+npm run test:watch   # the loop you keep open while writing code
+npm test             # run the suite once
+npm run typecheck    # tsc --noEmit
+npm run scan         # run the parser over your own ~/.claude/projects
+npm run scan -- --by-project
+```
+
+`scan` is a development tool, not the app. It prints what the core parser makes
+of your real transcripts — file and line counts, how many duplicate sightings
+were dropped, and token totals broken down by model — so the numbers can be
+checked against reality.
+
+For breakpoints, VS Code launch configurations are checked in: **Debug tests**,
+**Debug current test file**, and **Debug scan (real transcripts)**.
+
+Tests use hand-written fixtures rather than captured transcripts, and they must
+keep doing so — see [tests/fixtures.ts](tests/fixtures.ts).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
