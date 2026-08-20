@@ -5,6 +5,7 @@ import {
   comboTier,
   dailyStreak,
   levelFor,
+  longestCombo,
   tokenRatePerSecond,
 } from '../src/core/momentum.js';
 
@@ -50,8 +51,8 @@ describe('burnRatePerHour', () => {
   it('projects what the last window would cost if it kept up for an hour', () => {
     const rate = burnRatePerHour(
       [
-        { at: at(600, now), usd: 2, tokens: 0 },
-        { at: at(60, now), usd: 4, tokens: 0 },
+        { at: at(600, now), usd: 2, tokens: 0, work: 0 },
+        { at: at(60, now), usd: 4, tokens: 0, work: 0 },
       ],
       now,
       halfHour,
@@ -63,8 +64,8 @@ describe('burnRatePerHour', () => {
   it('ignores spend from before the window', () => {
     const rate = burnRatePerHour(
       [
-        { at: at(4000, now), usd: 100, tokens: 0 },
-        { at: at(60, now), usd: 3, tokens: 0 },
+        { at: at(4000, now), usd: 100, tokens: 0, work: 0 },
+        { at: at(60, now), usd: 3, tokens: 0, work: 0 },
       ],
       now,
       halfHour,
@@ -75,7 +76,7 @@ describe('burnRatePerHour', () => {
 
   it('is zero when nothing has been spent lately', () => {
     expect(burnRatePerHour([], now, halfHour)).toBe(0);
-    expect(burnRatePerHour([{ at: at(9000, now), usd: 50, tokens: 0 }], now, halfHour)).toBe(0);
+    expect(burnRatePerHour([{ at: at(9000, now), usd: 50, tokens: 0, work: 0 }], now, halfHour)).toBe(0);
   });
 });
 
@@ -164,8 +165,8 @@ describe('tokenRatePerSecond', () => {
   it('averages the tokens of the window over its length', () => {
     const rate = tokenRatePerSecond(
       [
-        { at: at(90), usd: 0, tokens: 3000 },
-        { at: at(10), usd: 0, tokens: 3000 },
+        { at: at(90), usd: 0, tokens: 3000, work: 3000 },
+        { at: at(10), usd: 0, tokens: 3000, work: 3000 },
       ],
       now,
       120 * SECOND,
@@ -177,8 +178,8 @@ describe('tokenRatePerSecond', () => {
   it('ignores turns from before the window', () => {
     const rate = tokenRatePerSecond(
       [
-        { at: at(9000), usd: 0, tokens: 999_999 },
-        { at: at(10), usd: 0, tokens: 600 },
+        { at: at(9000), usd: 0, tokens: 999_999, work: 999_999 },
+        { at: at(10), usd: 0, tokens: 600, work: 600 },
       ],
       now,
       60 * SECOND,
@@ -189,5 +190,47 @@ describe('tokenRatePerSecond', () => {
 
   it('falls to nothing when the window empties', () => {
     expect(tokenRatePerSecond([], now, 60 * SECOND)).toBe(0);
+  });
+});
+
+describe('longestCombo', () => {
+  const base = Date.parse('2026-08-21T00:00:00Z');
+  const stamp = (seconds: number) => new Date(base + seconds * SECOND).toISOString();
+  const gap = 120 * SECOND;
+
+  it('finds the longest unbroken run in the whole history', () => {
+    const best = longestCombo(
+      [
+        // A run of two.
+        stamp(0),
+        stamp(60),
+        // Long pause, then a run of four.
+        stamp(5000),
+        stamp(5060),
+        stamp(5120),
+        stamp(5180),
+        // Another pause, then a run of three.
+        stamp(9000),
+        stamp(9060),
+        stamp(9120),
+      ],
+      gap,
+    );
+
+    expect(best).toBe(4);
+  });
+
+  it('counts a lone turn as a run of one', () => {
+    expect(longestCombo([stamp(0)], gap)).toBe(1);
+  });
+
+  it('is nothing without any turns', () => {
+    expect(longestCombo([], gap)).toBe(0);
+  });
+
+  it('does not depend on the order it was handed', () => {
+    const shuffled = [stamp(120), stamp(0), stamp(60)];
+
+    expect(longestCombo(shuffled, gap)).toBe(3);
   });
 });

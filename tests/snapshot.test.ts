@@ -122,3 +122,24 @@ describe('buildSnapshot', () => {
     expect(snapshot.byDay).toEqual([]);
   });
 });
+
+describe('buildSnapshot combo record', () => {
+  it('reports the longest run of turns ever recorded', () => {
+    const at = (seconds: number) =>
+      new Date(Date.parse('2026-08-21T00:00:00Z') + seconds * 1000).toISOString();
+
+    const snapshot = buildSnapshot(
+      [
+        usageRecord({}, { timestamp: at(0) }),
+        usageRecord({}, { timestamp: at(60) }),
+        usageRecord({}, { timestamp: at(120) }),
+        // A long pause breaks the run.
+        usageRecord({}, { timestamp: at(9000) }),
+      ],
+      table,
+      'UTC',
+    );
+
+    expect(snapshot.bestCombo).toBe(3);
+  });
+});

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { totalTokens, workTokens } from '../src/core/limits.js';
 import { parseTranscriptLine } from '../src/core/records.js';
 import { assistantLine, userLine } from './fixtures.js';
 
@@ -14,6 +15,7 @@ describe('parseTranscriptLine', () => {
       cacheRead: 17332,
       cacheWrite5m: 0,
       cacheWrite1h: 10541,
+      thinking: 0,
     });
   });
 
@@ -58,6 +60,7 @@ describe('parseTranscriptLine', () => {
       cacheRead: 845284,
       cacheWrite5m: 1221,
       cacheWrite1h: 0,
+      thinking: 0,
     });
   });
 
@@ -126,5 +129,42 @@ describe('parseTranscriptLine', () => {
   it('ignores malformed lines rather than throwing', () => {
     expect(parseTranscriptLine('{ not json')).toBeNull();
     expect(parseTranscriptLine('')).toBeNull();
+  });
+});
+
+describe('thinking tokens', () => {
+  it('reads the thinking breakdown off the usage block', () => {
+    const record = parseTranscriptLine(assistantLine({ output: 523, thinking: 50 }));
+
+    expect(record?.tokens.output).toBe(523);
+    expect(record?.tokens.thinking).toBe(50);
+  });
+
+  it('never adds thinking on top of output, because the API counts it inside', () => {
+    // Measured against real transcripts: thinking_tokens never exceeds
+    // output_tokens, so it is a breakdown of that figure and adding it would
+    // count the same tokens twice.
+    const record = parseTranscriptLine(assistantLine({ output: 523, thinking: 50 }))!;
+
+    expect(totalTokens(record.tokens)).toBe(523);
+    expect(workTokens(record.tokens)).toBe(523);
+  });
+});
+
+describe('thinking alongside iterations', () => {
+  it('still reports thinking when the iterations carry no breakdown', () => {
+    // Iteration entries repeat the token counts but omit
+    // `output_tokens_details`, so summing the array alone loses thinking
+    // entirely — which is most records.
+    const record = parseTranscriptLine(
+      assistantLine({
+        output: 523,
+        thinking: 50,
+        iterations: [{ type: 'message', input_tokens: 2, output_tokens: 523 }],
+      }),
+    );
+
+    expect(record?.tokens.output).toBe(523);
+    expect(record?.tokens.thinking).toBe(50);
   });
 });

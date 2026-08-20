@@ -5,6 +5,15 @@ export interface TokenCounts {
   cacheRead: number;
   cacheWrite5m: number;
   cacheWrite1h: number;
+  /**
+   * The part of the output the model spent thinking.
+   *
+   * A breakdown of output, not an addition to it: measured across real
+   * transcripts, thinking never exceeds the output count. Summing it into a
+   * total would count the same tokens twice, so every total in this codebase
+   * lists its fields explicitly rather than adding up the object.
+   */
+  thinking: number;
 }
 
 /** One billable assistant turn, lifted out of a transcript line. */
@@ -37,6 +46,7 @@ const ZERO: TokenCounts = {
   cacheRead: 0,
   cacheWrite5m: 0,
   cacheWrite1h: 0,
+  thinking: 0,
 };
 
 function str(value: unknown): string | null {
@@ -72,6 +82,7 @@ function countsOf(usage: any): TokenCounts {
     cacheRead: num(usage?.cache_read_input_tokens),
     cacheWrite5m: write5m,
     cacheWrite1h: write1h,
+    thinking: num(usage?.output_tokens_details?.thinking_tokens),
   };
 }
 
@@ -82,6 +93,7 @@ function add(a: TokenCounts, b: TokenCounts): TokenCounts {
     cacheRead: a.cacheRead + b.cacheRead,
     cacheWrite5m: a.cacheWrite5m + b.cacheWrite5m,
     cacheWrite1h: a.cacheWrite1h + b.cacheWrite1h,
+    thinking: a.thinking + b.thinking,
   };
 }
 
@@ -96,7 +108,18 @@ function add(a: TokenCounts, b: TokenCounts): TokenCounts {
 function billableCounts(usage: any): TokenCounts {
   const iterations = usage?.iterations;
   if (Array.isArray(iterations) && iterations.length > 0) {
-    return iterations.map(countsOf).reduce(add, ZERO);
+    const summed = iterations.map(countsOf).reduce(add, ZERO);
+
+    // Iteration entries repeat the token counts but omit the output
+    // breakdown, so the thinking figure only exists at the top level. On a
+    // fallback that top level describes the last inference alone, which makes
+    // this a floor for those turns — acceptable, since thinking is shown as a
+    // share of output and is never summed into a total.
+    if (summed.thinking === 0) {
+      summed.thinking = Math.min(num(usage?.output_tokens_details?.thinking_tokens), summed.output);
+    }
+
+    return summed;
   }
   return countsOf(usage);
 }

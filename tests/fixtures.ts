@@ -17,6 +17,7 @@ interface LineOverrides {
   cacheRead?: number;
   cacheWrite5m?: number;
   cacheWrite1h?: number;
+  thinking?: number;
   iterations?: unknown;
   speed?: string | null;
   serviceTier?: string | null;
@@ -52,6 +53,7 @@ export function assistantLine(o: LineOverrides = {}): string {
       usage: {
         input_tokens: o.input ?? 0,
         output_tokens: o.output ?? 0,
+        output_tokens_details: { thinking_tokens: o.thinking ?? 0 },
         cache_read_input_tokens: o.cacheRead ?? 0,
         cache_creation_input_tokens: cacheWrite5m + cacheWrite1h,
         cache_creation: {
@@ -101,7 +103,15 @@ export function usageRecord(
     isSidechain: false,
     speed: 'standard',
     serviceTier: 'standard',
-    tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, ...tokens },
+    tokens: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite5m: 0,
+      cacheWrite1h: 0,
+      thinking: 0,
+      ...tokens,
+    },
     ...rest,
   };
 }

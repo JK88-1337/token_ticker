@@ -68,7 +68,7 @@ export interface PeakWindow {
 function emptyTotals(): WindowTotals {
   return {
     turns: 0,
-    tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 },
+    tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, thinking: 0 },
   };
 }
 
@@ -79,6 +79,7 @@ function absorb(into: WindowTotals, record: UsageRecord, sign: 1 | -1): void {
   into.tokens.cacheRead += sign * record.tokens.cacheRead;
   into.tokens.cacheWrite5m += sign * record.tokens.cacheWrite5m;
   into.tokens.cacheWrite1h += sign * record.tokens.cacheWrite1h;
+  into.tokens.thinking += sign * record.tokens.thinking;
 }
 
 function copy(totals: WindowTotals): WindowTotals {

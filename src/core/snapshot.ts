@@ -7,7 +7,7 @@ import {
   type PeakWindow,
   type WindowTotals,
 } from './limits.js';
-import type { SpendEvent } from './momentum.js';
+import { COMBO_GAP_MS, longestCombo, type SpendEvent } from './momentum.js';
 import { priceRecord, type PricingTable } from './pricing.js';
 import type { UsageRecord } from './records.js';
 
@@ -54,6 +54,8 @@ export interface UsageSnapshot {
    * been cut off at least once.
    */
   observedCeiling: number | null;
+  /** The longest unbroken run of turns ever recorded — the combo to beat. */
+  bestCombo: number;
 }
 
 export interface SnapshotOptions {
@@ -91,6 +93,10 @@ export function buildSnapshot(
     peak: peakWindowTokens(records, SESSION_WINDOW_MS),
     limitHits,
     observedCeiling: ceilingFrom(records, limitHits),
+    bestCombo: longestCombo(
+      records.map((record) => record.timestamp),
+      COMBO_GAP_MS,
+    ),
   };
 }
 
@@ -123,5 +129,6 @@ function recentEvents(records: readonly UsageRecord[], table: PricingTable): Spe
       at: record.timestamp,
       usd: priceRecord(record, table).usd,
       tokens: totalTokens(record.tokens),
+      work: workTokens(record.tokens),
     }));
 }

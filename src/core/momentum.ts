@@ -38,6 +38,8 @@ export interface SpendEvent {
   usd: number;
   /** Every token class added together. */
   tokens: number;
+  /** Tokens excluding cache reads — the measure the allowance gauge uses. */
+  work: number;
 }
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -91,13 +93,17 @@ export function burnRatePerHour(
   return spent === 0 ? 0 : (spent * HOUR_MS) / windowMs;
 }
 
+/** A pause longer than this ends a run of turns. */
+export const COMBO_GAP_MS = 120_000;
+
 /** A name for a run, once it is long enough to be worth naming. */
 export interface ComboTier {
   rank: number;
   name: string;
 }
 
-const TIERS: readonly (ComboTier & { from: number })[] = [
+/** The ladder, lowest first. Exported so a view can show what is next. */
+export const COMBO_TIERS: readonly (ComboTier & { from: number })[] = [
   { from: 2, rank: 1, name: 'WARMING UP' },
   { from: 5, rank: 2, name: 'ROLLING' },
   { from: 10, rank: 3, name: 'ON FIRE' },
@@ -108,10 +114,35 @@ const TIERS: readonly (ComboTier & { from: number })[] = [
 /** What to call the current run, or nothing if it is too short to brag about. */
 export function comboTier(combo: number): ComboTier | null {
   let found: ComboTier | null = null;
-  for (const tier of TIERS) {
+  for (const tier of COMBO_TIERS) {
     if (combo >= tier.from) found = { rank: tier.rank, name: tier.name };
   }
   return found;
+}
+
+/**
+ * The longest unbroken run anywhere in the history.
+ *
+ * The record a live combo is measured against. Unlike {@link comboLength} this
+ * ignores how long ago it happened — it is a personal best, not a live state.
+ */
+export function longestCombo(timestamps: readonly string[], gapMs: number): number {
+  const times = timestamps
+    .map((stamp) => Date.parse(stamp))
+    .filter((time) => Number.isFinite(time))
+    .sort((a, b) => a - b);
+
+  let best = 0;
+  let run = 0;
+  let previous: number | undefined;
+
+  for (const time of times) {
+    run = previous !== undefined && time - previous <= gapMs ? run + 1 : 1;
+    if (run > best) best = run;
+    previous = time;
+  }
+
+  return best;
 }
 
 /** The first level costs this many tokens; each one after costs more. */

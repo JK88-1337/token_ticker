@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { totalTokens, workTokens } from '../core/limits.js';
 import {
+  COMBO_GAP_MS,
+  COMBO_TIERS,
   comboLength,
   comboTier,
   dailyStreak,
@@ -8,15 +10,15 @@ import {
   tokenRatePerSecond,
 } from '../core/momentum.js';
 import type { UsageSnapshot } from '../core/snapshot.js';
-import { GrowthLine, type GrowthPoint } from './charts.js';
-import { compact, count, full, todayKey } from './format.js';
+import { Beats, Donut, GrowthLine, TokenFlow, type GrowthPoint } from './charts.js';
+import { compact, count, full, todayKey, usd } from './format.js';
 import { useAnimatedValue, useNow, usePrevious } from './hooks.js';
 import { Odometer } from './Odometer.js';
 
-/** A pause longer than this ends a run of turns. */
-const COMBO_GAP_MS = 120_000;
 /** Short enough that the rate jumps the moment a turn lands. */
 const RATE_WINDOW_MS = 60_000;
+/** How far back the beat strip shows individual turns. */
+const BEATS_WINDOW_MS = 20 * 60_000;
 
 interface Floater {
   id: number;
@@ -48,6 +50,9 @@ function pressure(used: number, ceiling: number | null) {
 export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
   const now = useNow(1000);
   const [floaters, setFloaters] = useState<Floater[]>([]);
+  // Bumped whenever tokens actually arrive; remounting on it restarts the hit
+  // animations, which a plain class toggle would not do mid-flight.
+  const [hit, setHit] = useState(0);
 
   const today = snapshot.byDay.find((bucket) => bucket.key === todayKey(snapshot.timeZone));
   const todayTokens = today ? totalTokens(today.totals.tokens) : 0;
@@ -81,6 +86,8 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
 
   const lifetime = totalTokens(snapshot.totals.tokens);
   const level = levelFor(lifetime);
+  const previousLevel = usePrevious(level.level);
+  const levelledUp = previousLevel !== undefined && level.level > previousLevel;
   const rate = tokenRatePerSecond(snapshot.recent, now, RATE_WINDOW_MS);
   const combo = comboLength(snapshot.recent.map((event) => event.at), now, COMBO_GAP_MS);
   const tier = comboTier(combo);
@@ -93,7 +100,8 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
   const sinceLast = lastAt ? now - Date.parse(lastAt) : Number.POSITIVE_INFINITY;
   const comboLeft = Math.max(0, 1 - sinceLast / COMBO_GAP_MS);
 
-  const windowUsed = workTokens(snapshot.window.totals.tokens);
+  const w = snapshot.window.totals.tokens;
+  const windowUsed = workTokens(w);
   const peak = workTokens(snapshot.peak.totals.tokens);
   const ceiling = snapshot.observedCeiling ?? (peak > 0 ? peak : null);
   const gauge = pressure(windowUsed, ceiling);
@@ -105,6 +113,7 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
 
     const floater = { id: Date.now(), text: `+${full(Math.round(gained))}` };
     setFloaters((current) => [...current, floater]);
+    setHit((count) => count + 1);
     const timer = setTimeout(
       () => setFloaters((current) => current.filter((f) => f.id !== floater.id)),
       1500,
@@ -115,6 +124,7 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
   return (
     <section className={combo > 1 ? 'board live' : 'board'}>
       <div className="score">
+        <span className="hit-ring" key={hit} />
         <div className="score-top">
           <span className="score-label">Tokens today</span>
           {isRecord ? <span className="record-chip">NEW RECORD</span> : null}
@@ -137,10 +147,15 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
             <Odometer value={full(Math.round(rate))} />
             <span className="per">tok/s</span>
           </span>
-          <span className="rate-note">{count(today?.totals.turns ?? 0)} turns today</span>
+          {/* What today's tokens would have cost at pay-as-you-go rates. On a
+              subscription it is a measure of compute extracted, not a bill. */}
+          <span className="worth" title="equivalent pay-as-you-go value, not a bill">
+            ≈ {usd(today?.totals.usd ?? 0)}
+          </span>
+          <span className="rate-note">{count(today?.totals.turns ?? 0)} turns</span>
         </div>
 
-        <GrowthLine points={growth} from={dayStart} to={now} />
+        <GrowthLine points={growth} from={dayStart} to={now} pulseKey={hit} />
 
         <div className="record">
           <div
@@ -158,11 +173,29 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
       </div>
 
       <div className="combo-card">
-        <div className="score-label">Combo</div>
+        <div className="score-top">
+          <span className="score-label">Combo</span>
+          <span className="combo-best">best ×{snapshot.bestCombo}</span>
+        </div>
+
         <div className="combo-figure" key={combo}>
           {combo > 0 ? `×${combo}` : '—'}
         </div>
-        <div className="combo-tier">{tier ? tier.name : combo > 0 ? 'first blood' : 'idle'}</div>
+        <div className="combo-tier">{tier ? tier.name : combo > 0 ? 'FIRST BLOOD' : 'IDLE'}</div>
+
+        <Beats events={snapshot.recent} from={now - BEATS_WINDOW_MS} to={now} />
+
+        {/* The ladder is the whole scale at once, so the next rung is visible
+            before it is reached rather than only once it lands. */}
+        <ol className="ladder">
+          {[...COMBO_TIERS].reverse().map((rung) => (
+            <li key={rung.rank} className={combo >= rung.from ? 'rung on' : 'rung'}>
+              <span className="rung-name">{rung.name}</span>
+              <span className="rung-at">×{rung.from}</span>
+            </li>
+          ))}
+        </ol>
+
         <div className="decay">
           <div className="decay-fill" style={{ width: `${comboLeft * 100}%` }} />
         </div>
@@ -187,6 +220,35 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
               ? 'no refusal on record — against your busiest window'
               : 'nothing to compare against yet'}
         </div>
+
+        <div className="window-split">
+          {/* Cache reads are left out of the ring on purpose: at ~99% of the
+              window they would flatten every other slice to a hairline and say
+              nothing. The ring shows the work tokens the gauge above measures;
+              the reads keep their row on the right. */}
+          <Donut
+            slices={[
+              { label: 'cache write', value: w.cacheWrite5m + w.cacheWrite1h, colour: 'var(--series-3)' },
+              { label: 'thinking', value: w.thinking, colour: 'var(--series-4)' },
+              { label: 'reply', value: Math.max(w.output - w.thinking, 0), colour: 'var(--series-2)' },
+              { label: 'fresh input', value: w.input, colour: 'var(--series-7)' },
+            ]}
+            centre={compact(windowUsed)}
+          />
+          <TokenFlow
+          inbound={[
+            { label: 'cache read', value: w.cacheRead, colour: 'var(--series-1)' },
+            { label: 'cache write', value: w.cacheWrite5m + w.cacheWrite1h, colour: 'var(--series-3)' },
+            { label: 'fresh input', value: w.input, colour: 'var(--series-7)' },
+          ]}
+          outbound={[
+            { label: 'thinking', value: w.thinking, colour: 'var(--series-4)' },
+            // Thinking is inside the output count, so the visible reply is what
+            // is left after it — subtracted, never added.
+            { label: 'reply', value: Math.max(w.output - w.thinking, 0), colour: 'var(--series-2)' },
+          ]}
+          />
+        </div>
       </div>
 
       <div className="mini-row">
@@ -194,7 +256,11 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
           <span className="mini-label">Lifetime</span>
           <span className="mini-value">{full(lifetime)}</span>
         </div>
-        <div className="mini level-mini">
+        <div className="mini">
+          <span className="mini-label">Worth</span>
+          <span className="mini-value">{usd(snapshot.totals.usd)}</span>
+        </div>
+        <div className={levelledUp ? 'mini level-mini levelled' : 'mini level-mini'}>
           <span className="mini-label">Level {level.level}</span>
           <span className="mini-value">{compact(level.span - level.into)}</span>
           <div className="xp">
@@ -204,10 +270,6 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
         <div className="mini">
           <span className="mini-label">Streak</span>
           <span className="mini-value">{streak > 0 ? `${streak}d` : '—'}</span>
-        </div>
-        <div className="mini">
-          <span className="mini-label">Window turns</span>
-          <span className="mini-value">{count(snapshot.window.totals.turns)}</span>
         </div>
         <div className="mini">
           <span className="mini-label">Cut off</span>

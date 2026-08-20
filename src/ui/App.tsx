@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { workTokens } from '../core/limits.js';
+import { COMBO_GAP_MS } from '../core/momentum.js';
 import type { UsageSnapshot } from '../core/snapshot.js';
 import type { UsageBucket } from '../core/summary.js';
 import { Breakdown, DailyBars, type BreakdownItem } from './charts.js';
@@ -93,7 +94,7 @@ export function App() {
   // "Live" means a turn landed recently enough to still be part of a run —
   // the same two minutes the combo uses, so the two never disagree.
   const lastAt = snapshot.recent.at(-1)?.at;
-  const live = lastAt ? Date.now() - Date.parse(lastAt) < 120_000 : false;
+  const live = lastAt ? Date.now() - Date.parse(lastAt) < COMBO_GAP_MS : false;
 
   const tabs: { id: Tab; label: string; hint: string }[] = [
     { id: 'days', label: 'Days', hint: `${byDay.length}` },
