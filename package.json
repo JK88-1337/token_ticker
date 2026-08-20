@@ -1,6 +1,6 @@
 {
   "name": "token-ticker",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "A local-first dashboard for your Claude Code token consumption",
   "license": "MIT",
@@ -15,13 +15,19 @@
     "scan": "tsx scripts/scan.ts",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:electron": "node scripts/build-electron.mjs",
+    "build:app": "npm run build && npm run build:electron",
+    "package": "npm run build:app && electron-builder"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
+    "electron": "^43.4.1",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2",
     "tsx": "^4.23.12",
     "typescript": "^5.9.3",
     "vite": "^8.2.2",
@@ -30,5 +36,6 @@
   "dependencies": {
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
-  }
+  },
+  "main": "dist-electron/main.cjs"
 }

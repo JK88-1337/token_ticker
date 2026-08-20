@@ -4,6 +4,7 @@ import { COMBO_GAP_MS } from '../core/momentum.js';
 import type { UsageSnapshot } from '../core/snapshot.js';
 import type { UsageBucket } from '../core/summary.js';
 import { Breakdown, DailyBars, type BreakdownItem } from './charts.js';
+import { subscribeToUsage } from './feed.js';
 import { compact, count, projectName, shortDay, usd } from './format.js';
 import { Scoreboard } from './Scoreboard.js';
 
@@ -57,29 +58,25 @@ export function App() {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     let cancelled = false;
 
-    // Pushed from a filesystem watcher, not polled: a turn reaches the screen
-    // about as fast as Claude Code can write it.
-    const source = new EventSource(`/api/usage/stream?tz=${encodeURIComponent(timeZone)}`);
-
-    source.onmessage = (event) => {
-      if (cancelled) return;
-      setSnapshot(JSON.parse(event.data) as UsageSnapshot);
-      setError(null);
-    };
-
-    source.addEventListener('activity', () => {
-      if (!cancelled) setActivityAt(Date.now());
+    // Pushed rather than polled, over whichever transport this build has: IPC
+    // when packaged, SSE in development. Both carry the same snapshot.
+    const unsubscribe = subscribeToUsage(timeZone, {
+      snapshot: (next) => {
+        if (cancelled) return;
+        setSnapshot(next);
+        setError(null);
+      },
+      activity: () => {
+        if (!cancelled) setActivityAt(Date.now());
+      },
+      error: (message) => {
+        if (!cancelled) setError(message);
+      },
     });
-
-    // EventSource reconnects on its own, so this only matters before the first
-    // snapshot ever arrives.
-    source.onerror = () => {
-      if (!cancelled) setError('waiting for the usage feed');
-    };
 
     return () => {
       cancelled = true;
-      source.close();
+      unsubscribe();
     };
   }, []);
 
