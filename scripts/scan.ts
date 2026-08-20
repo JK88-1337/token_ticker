@@ -10,32 +10,10 @@
  *   npm run scan -- --by-project
  *   npm run scan -- --days 30
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { dedupeRecords } from '../src/core/ledger.js';
 import { defaultPricingTable as table } from '../src/core/pricing.js';
-import { parseTranscriptLine, type UsageRecord } from '../src/core/records.js';
 import { bucketBy, bucketByDay, totalUsage, type UsageBucket, type UsageTotals } from '../src/core/summary.js';
-
-function transcriptFiles(root: string): string[] {
-  const files: string[] = [];
-  let entries: string[];
-  try {
-    entries = readdirSync(root);
-  } catch {
-    console.error(`No transcripts at ${root} — is Claude Code installed for this user?`);
-    process.exit(1);
-  }
-  for (const entry of entries) {
-    const dir = join(root, entry);
-    if (!statSync(dir).isDirectory()) continue;
-    for (const file of readdirSync(dir)) {
-      if (file.endsWith('.jsonl')) files.push(join(dir, file));
-    }
-  }
-  return files;
-}
+import { defaultTranscriptRoot, scanTranscripts } from '../src/node/transcripts.js';
 
 function flagValue(name: string, fallback: number): number {
   const at = process.argv.indexOf(`--${name}`);
@@ -64,25 +42,19 @@ function printBuckets(heading: string, buckets: UsageBucket[]): void {
 
 const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const days = flagValue('days', 14);
-const root = join(homedir(), '.claude', 'projects');
-const files = transcriptFiles(root);
-
-const parsed: UsageRecord[] = [];
-let lines = 0;
-for (const file of files) {
-  for (const line of readFileSync(file, 'utf8').split('\n')) {
-    if (!line.trim()) continue;
-    lines++;
-    const record = parseTranscriptLine(line);
-    if (record) parsed.push(record);
-  }
-}
+const root = defaultTranscriptRoot();
+const { records: parsed, cursors } = await scanTranscripts(root);
 const records = dedupeRecords(parsed);
+
+if (parsed.length === 0) {
+  console.error(`\nNo usage found under ${root} — has Claude Code run for this user?\n`);
+  process.exit(1);
+}
 
 console.log(`\nroot      ${root}`);
 console.log(`zone      ${timeZone}`);
-console.log(`files     ${n(files.length)}`);
-console.log(`lines     ${n(lines)} read, ${n(parsed.length)} billable, ${n(records.length)} after dedupe`);
+console.log(`files     ${n(Object.keys(cursors).length)}`);
+console.log(`records   ${n(parsed.length)} billable, ${n(records.length)} after dedupe`);
 console.log(`duplicates ${n(parsed.length - records.length)} repeat sightings dropped\n`);
 
 printTotals('raw', totalUsage(parsed, table));
