@@ -1,6 +1,17 @@
+import {
+  peakWindowTokens,
+  windowTokens,
+  workTokens,
+  type LimitEvent,
+  type PeakWindow,
+  type WindowTotals,
+} from './limits.js';
 import type { SpendEvent } from './momentum.js';
 import { priceRecord, type PricingTable } from './pricing.js';
 import type { UsageRecord } from './records.js';
+
+/** The rolling allowance window Claude Code calls a session. */
+export const SESSION_WINDOW_MS = 5 * 60 * 60 * 1000;
 import { bucketBy, bucketByDay, totalUsage, type UsageBucket, type UsageTotals } from './summary.js';
 
 /**
@@ -29,6 +40,24 @@ export interface UsageSnapshot {
    * snapshot that would otherwise grow with history.
    */
   recent: SpendEvent[];
+  /** The allowance window in progress right now. */
+  window: { ms: number; totals: WindowTotals };
+  /** The busiest window of the same length in the whole history. */
+  peak: PeakWindow;
+  /** Every time the API refused a turn because an allowance ran out. */
+  limitHits: LimitEvent[];
+  /**
+   * Work tokens in the window that ended at the most recent refusal — the
+   * only ceiling the transcripts can actually evidence. Null until you have
+   * been cut off at least once.
+   */
+  observedCeiling: number | null;
+}
+
+export interface SnapshotOptions {
+  limits?: readonly LimitEvent[];
+  /** Overridable so the window is testable. */
+  now?: number;
 }
 
 /** How many recent turns travel with a snapshot. */
@@ -41,16 +70,46 @@ export function buildSnapshot(
   records: readonly UsageRecord[],
   table: PricingTable,
   timeZone: string,
+  options: SnapshotOptions = {},
 ): UsageSnapshot {
+  const now = options.now ?? Date.now();
+  const limitHits = [...(options.limits ?? [])].sort(
+    (a, b) => Date.parse(a.at) - Date.parse(b.at),
+  );
+
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt: new Date(now).toISOString(),
     timeZone,
     totals: totalUsage(records, table),
     byDay: bucketByDay(records, table, timeZone),
     byModel: bucketBy(records, table, (record) => record.model).sort(byCost),
     byProject: bucketBy(records, table, (record) => record.projectPath).sort(byCost),
     recent: recentEvents(records, table),
+    window: { ms: SESSION_WINDOW_MS, totals: windowTokens(records, now, SESSION_WINDOW_MS) },
+    peak: peakWindowTokens(records, SESSION_WINDOW_MS),
+    limitHits,
+    observedCeiling: ceilingFrom(records, limitHits),
   };
+}
+
+/**
+ * What the window held at the moment it was refused.
+ *
+ * Cache reads are left out: they swamp every other class and are the cheapest
+ * thing billed, so including them would make the reading swing with context
+ * size rather than with effort.
+ */
+function ceilingFrom(
+  records: readonly UsageRecord[],
+  limitHits: readonly LimitEvent[],
+): number | null {
+  const latest = limitHits.at(-1);
+  if (!latest) return null;
+
+  const hitAt = Date.parse(latest.at);
+  if (!Number.isFinite(hitAt)) return null;
+
+  return workTokens(windowTokens(records, hitAt, SESSION_WINDOW_MS).tokens);
 }
 
 /** The newest turns, oldest first, reduced to time and cost. */

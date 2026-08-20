@@ -117,6 +117,10 @@ export function parseTranscriptLine(line: string): UsageRecord | null {
   const message = parsed?.message;
   if (!message?.usage) return null;
 
+  // Failures — a 429, an expired token — are written as assistant lines with
+  // a zeroed usage block. They are turns that never ran.
+  if (parsed.isApiErrorMessage === true) return null;
+
   // Claude Code records some turns it generated itself — cancellations, local
   // errors — under a placeholder model. They cost nothing.
   if (message.model === SYNTHETIC_MODEL) return null;

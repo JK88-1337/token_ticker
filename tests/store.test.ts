@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { UsageStore } from '../src/node/store.js';
-import { assistantLine, testPricingTable as table } from './fixtures.js';
+import { apiErrorLine, assistantLine, testPricingTable as table } from './fixtures.js';
 
 let root: string;
 
@@ -52,5 +52,27 @@ describe('UsageStore', () => {
     const store = new UsageStore(root);
 
     expect(store.snapshot(table, 'UTC').totals.turns).toBe(0);
+  });
+});
+
+describe('UsageStore limits', () => {
+  it('remembers a refusal and counts it once across resumed sessions', async () => {
+    const hit = apiErrorLine({ timestamp: '2026-07-21T08:47:47.452Z' });
+    transcript('project-a', 'session-1.jsonl', assistantLine({ requestId: 'req_a' }) + '\n' + hit + '\n');
+    const store = new UsageStore(root);
+    await store.refresh();
+
+    transcript('project-a', 'session-2.jsonl', hit + '\n');
+    await store.refresh();
+
+    expect(store.snapshot(table, 'UTC').limitHits).toHaveLength(1);
+  });
+
+  it('reports whether a refresh brought anything new', async () => {
+    transcript('project-a', 'session-1.jsonl', assistantLine({ requestId: 'req_a' }) + '\n');
+    const store = new UsageStore(root);
+
+    expect(await store.refresh()).toBe(true);
+    expect(await store.refresh()).toBe(false);
   });
 });

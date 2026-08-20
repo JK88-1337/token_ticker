@@ -106,6 +106,21 @@ export function usageRecord(
   };
 }
 
+/**
+ * An assistant line reporting an API failure — how Claude Code records a 429
+ * or an expired token. The usage block is present but zeroed.
+ */
+export function apiErrorLine(o: { status?: number; error?: string; text?: string; timestamp?: string } = {}): string {
+  const line = JSON.parse(assistantLine({ timestamp: o.timestamp })) as Record<string, any>;
+  line['isApiErrorMessage'] = true;
+  line['apiErrorStatus'] = o.status ?? 429;
+  line['error'] = o.error ?? 'rate_limit';
+  line['message'].content = [
+    { type: 'text', text: o.text ?? "You've hit your session limit · resets 10:30pm (Australia/Sydney)" },
+  ];
+  return JSON.stringify(line);
+}
+
 /** A user line — no `usage`, must never be billed. */
 export function userLine(): string {
   return JSON.stringify({

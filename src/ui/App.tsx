@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { workTokens } from '../core/limits.js';
 import type { UsageSnapshot } from '../core/snapshot.js';
 import type { UsageBucket } from '../core/summary.js';
 import { Breakdown, DailyBars, type BreakdownItem } from './charts.js';
-import { compact, count, dayKeyBefore, projectName, todayKey, usd } from './format.js';
-import { Momentum } from './Momentum.js';
+import { compact, count, projectName, shortDay, todayKey, usd } from './format.js';
+import { Scoreboard } from './Scoreboard.js';
 
 /** How many active days the trend shows. */
 const TREND_DAYS = 30;
@@ -26,24 +27,39 @@ const SERIES = [
   'var(--series-8)',
 ];
 
-function toItems(buckets: UsageBucket[], color: (key: string) => string, label = (k: string) => k): BreakdownItem[] {
+function toItems(
+  buckets: UsageBucket[],
+  colour: (key: string) => string,
+  label = (key: string) => key,
+): BreakdownItem[] {
   return buckets.map((bucket) => ({
     key: bucket.key,
     label: label(bucket.key),
     usd: bucket.totals.usd,
     turns: bucket.totals.turns,
     outputTokens: bucket.totals.tokens.output,
-    color: color(bucket.key),
+    colour: colour(bucket.key),
   }));
 }
 
-function Tile({ label, value, note }: { label: string; value: string; note?: string }) {
+/** A collapsed section — the detail is there when wanted, not before. */
+function Drawer({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="tile">
-      <div className="label">{label}</div>
-      <div className="value">{value}</div>
-      {note ? <div className="note">{note}</div> : null}
-    </div>
+    <details className="drawer">
+      <summary>
+        <span className="drawer-title">{title}</span>
+        <span className="drawer-hint">{hint}</span>
+      </summary>
+      <div className="drawer-body">{children}</div>
+    </details>
   );
 }
 
@@ -55,60 +71,43 @@ export function App() {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     let cancelled = false;
 
-    async function load() {
-      try {
-        const response = await fetch(`/api/usage?tz=${encodeURIComponent(timeZone)}`);
-        if (!response.ok) throw new Error(`the usage API answered ${response.status}`);
-        const data = (await response.json()) as UsageSnapshot;
-        if (!cancelled) {
-          setSnapshot(data);
-          setError(null);
-        }
-      } catch (cause) {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause));
-      }
-    }
+    // Pushed from a filesystem watcher, not polled: a turn reaches the screen
+    // about as fast as Claude Code can write it.
+    const source = new EventSource(`/api/usage/stream?tz=${encodeURIComponent(timeZone)}`);
 
-    void load();
-    // Second-by-second, so a turn lands on screen while it still feels live.
-    // Each poll is an incremental scan that reads only what was appended.
-    const timer = setInterval(() => void load(), 1_000);
+    source.onmessage = (event) => {
+      if (cancelled) return;
+      setSnapshot(JSON.parse(event.data) as UsageSnapshot);
+      setError(null);
+    };
+
+    // EventSource reconnects on its own, so this only matters before the first
+    // snapshot ever arrives.
+    source.onerror = () => {
+      if (!cancelled) setError('waiting for the usage feed');
+    };
+
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      source.close();
     };
   }, []);
 
   const modelColour = useMemo(() => {
-    const order = [...(snapshot?.byModel ?? [])].map((b) => b.key).sort();
+    const order = [...(snapshot?.byModel ?? [])].map((bucket) => bucket.key).sort();
     return (key: string) => SERIES[order.indexOf(key) % SERIES.length]!;
   }, [snapshot]);
-
-  if (error) {
-    return (
-      <div className="app">
-        <p className="state">Could not read usage — {error}.</p>
-      </div>
-    );
-  }
 
   if (!snapshot) {
     return (
       <div className="app">
-        <p className="state">Reading transcripts…</p>
+        <p className="state">{error ?? 'Reading transcripts…'}</p>
       </div>
     );
   }
 
-  const { totals, byDay, byModel, byProject, timeZone } = snapshot;
+  const { totals, byDay, byModel, byProject, timeZone, limitHits } = snapshot;
   const today = byDay.find((bucket) => bucket.key === todayKey(timeZone));
-  const weekCutoff = dayKeyBefore(timeZone, 6);
-  const weekUsd = byDay
-    .filter((bucket) => bucket.key >= weekCutoff)
-    .reduce((sum, bucket) => sum + bucket.totals.usd, 0);
-
-  const cacheRead = totals.tokens.cacheRead;
-  const cacheWrite = totals.tokens.cacheWrite5m + totals.tokens.cacheWrite1h;
 
   return (
     <div className="app">
@@ -116,55 +115,65 @@ export function App() {
         <h1>token_ticker</h1>
         <span className="tag">unofficial · {timeZone}</span>
       </header>
-      <p className="subhead">
-        Equivalent pay-as-you-go value of your Claude Code usage. On a subscription this is what
-        the compute would have cost, not what you were billed.
-      </p>
 
-      <Momentum snapshot={snapshot} />
-
-      <div className="tiles">
-        <Tile label="Today" value={usd(today?.totals.usd ?? 0)} note={`${count(today?.totals.turns ?? 0)} turns`} />
-        <Tile label="Last 7 days" value={usd(weekUsd)} />
-        <Tile
-          label="Cache traffic"
-          value={compact(cacheRead)}
-          note={`read · ${compact(cacheWrite)} written`}
-        />
-      </div>
+      <Scoreboard snapshot={snapshot} />
 
       {totals.unpricedTurns > 0 ? (
         <p className="footnote warn">
           {count(totals.unpricedTurns)} turns ran on a model with no rate in the pricing table, so
-          the totals above are a floor rather than a total.
+          the equivalent value is a floor rather than a total.
         </p>
       ) : null}
 
-      <section className="panel">
-        <h2>Spend per day</h2>
+      <Drawer
+        title="Spend per day"
+        hint={`today ${usd(today?.totals.usd ?? 0)} · ${byDay.length} active days`}
+      >
         <p className="caption">
           Last {TREND_DAYS} days with activity, oldest first. Days with no usage are not shown.
         </p>
         <DailyBars buckets={byDay.slice(-TREND_DAYS)} />
-      </section>
+      </Drawer>
 
-      <div className="columns">
-        <section className="panel">
-          <h2>By model</h2>
-          <p className="caption">Share of spend.</p>
-          <Breakdown items={toItems(byModel, modelColour)} />
-        </section>
+      <Drawer title="By model" hint={`${byModel.length} models`}>
+        <Breakdown items={toItems(byModel, modelColour)} />
+      </Drawer>
 
-        <section className="panel">
-          <h2>By project</h2>
-          <p className="caption">Share of spend.</p>
-          <Breakdown items={toItems(byProject, () => 'var(--series-1)', projectName)} />
-        </section>
-      </div>
+      <Drawer title="By project" hint={`${byProject.length} projects`}>
+        <Breakdown items={toItems(byProject, () => 'var(--series-1)', projectName)} />
+      </Drawer>
+
+      <Drawer
+        title="Ceiling evidence"
+        hint={limitHits.length > 0 ? `${limitHits.length} refusals on record` : 'never cut off'}
+      >
+        <p className="caption">
+          The allowance itself is not in the transcripts and is not cached on disk, so nothing here
+          is a quota lookup. What is recorded is the moment a turn was refused — and what the
+          window held when it happened.
+        </p>
+        {limitHits.length > 0 ? (
+          <ul className="events">
+            {limitHits.map((hit) => (
+              <li key={hit.at}>
+                <span className="event-when">{shortDay(hit.at.slice(0, 10))}</span>
+                <span className="event-text">{hit.notice}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="state">
+            No refusal on record. The session gauge compares against your busiest window instead —{' '}
+            {compact(workTokens(snapshot.peak.totals.tokens))} tokens.
+          </p>
+        )}
+      </Drawer>
 
       <p className="footnote">
-        Read from your local transcripts; nothing leaves this machine. Rates come from the shipped
-        pricing table — verify them against Anthropic's pricing page before trusting a total.
+        Read from your local transcripts; nothing leaves this machine. Token counts exclude cache
+        reads where an allowance is concerned — they swamp every other class and are the cheapest
+        thing billed. Rates come from the shipped pricing table; verify them against Anthropic's
+        pricing page before trusting a total.
       </p>
     </div>
   );

@@ -94,7 +94,7 @@ export interface BreakdownItem {
   usd: number;
   turns: number;
   outputTokens: number;
-  color: string;
+  colour: string;
 }
 
 /**
@@ -114,7 +114,7 @@ export function Breakdown({ items }: { items: BreakdownItem[] }) {
       {items.map((item) => (
         <div className="row" key={item.key} title={`${count(item.turns)} turns`}>
           <div className="row-head">
-            <span className="swatch" style={{ background: item.color }} />
+            <span className="swatch" style={{ background: item.colour }} />
             <span className="name">{item.label}</span>
             <span className="amount">{usd(item.usd)}</span>
           </div>
@@ -123,7 +123,7 @@ export function Breakdown({ items }: { items: BreakdownItem[] }) {
               className="fill"
               style={{
                 width: `${peak > 0 ? Math.max((item.usd / peak) * 100, 1) : 0}%`,
-                background: item.color,
+                background: item.colour,
               }}
             />
           </div>

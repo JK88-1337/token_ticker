@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { findTranscripts, readTranscriptFrom, scanTranscripts } from '../src/node/transcripts.js';
-import { assistantLine } from './fixtures.js';
+import { apiErrorLine, assistantLine } from './fixtures.js';
 
 let root: string;
 
@@ -158,6 +158,19 @@ describe('scanTranscripts', () => {
     const second = await scanTranscripts(root, first.cursors);
 
     expect(second.records.map((r) => r.requestId)).toEqual(['req_b']);
+  });
+
+  it('surfaces the moments a limit was hit alongside the turns', async () => {
+    transcript(
+      'project-a',
+      'session-1.jsonl',
+      assistantLine({ requestId: 'req_a' }) + '\n' + apiErrorLine({ timestamp: '2026-07-21T08:47:47.452Z' }) + '\n',
+    );
+
+    const scan = await scanTranscripts(root);
+
+    expect(scan.records).toHaveLength(1);
+    expect(scan.limits.map((limit) => limit.at)).toEqual(['2026-07-21T08:47:47.452Z']);
   });
 
   it('drops cursors for transcripts that are gone', async () => {

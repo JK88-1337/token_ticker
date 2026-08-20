@@ -112,6 +112,17 @@ describe('parseTranscriptLine', () => {
     expect(parseTranscriptLine(assistantLine({ model: '<synthetic>' }))).toBeNull();
   });
 
+  it('ignores turns that only report an API error', () => {
+    // A 429 or a failed auth is written as an assistant line with a zeroed
+    // usage block. Counting it would inflate the turn count with turns that
+    // never ran.
+    const line = JSON.parse(assistantLine({ requestId: 'req_x' })) as Record<string, unknown>;
+    line['isApiErrorMessage'] = true;
+    line['apiErrorStatus'] = 429;
+
+    expect(parseTranscriptLine(JSON.stringify(line))).toBeNull();
+  });
+
   it('ignores malformed lines rather than throwing', () => {
     expect(parseTranscriptLine('{ not json')).toBeNull();
     expect(parseTranscriptLine('')).toBeNull();

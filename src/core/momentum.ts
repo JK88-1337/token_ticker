@@ -64,6 +64,63 @@ export function burnRatePerHour(
   return spent === 0 ? 0 : (spent * HOUR_MS) / windowMs;
 }
 
+/** A name for a run, once it is long enough to be worth naming. */
+export interface ComboTier {
+  rank: number;
+  name: string;
+}
+
+const TIERS: readonly (ComboTier & { from: number })[] = [
+  { from: 2, rank: 1, name: 'WARMING UP' },
+  { from: 5, rank: 2, name: 'ROLLING' },
+  { from: 10, rank: 3, name: 'ON FIRE' },
+  { from: 25, rank: 4, name: 'RELENTLESS' },
+  { from: 50, rank: 5, name: 'UNSTOPPABLE' },
+];
+
+/** What to call the current run, or nothing if it is too short to brag about. */
+export function comboTier(combo: number): ComboTier | null {
+  let found: ComboTier | null = null;
+  for (const tier of TIERS) {
+    if (combo >= tier.from) found = { rank: tier.rank, name: tier.name };
+  }
+  return found;
+}
+
+/** The first level costs this many tokens; each one after costs more. */
+const LEVEL_BASE = 1_000_000;
+const LEVEL_GROWTH = 1.6;
+
+export interface Level {
+  level: number;
+  /** Tokens earned into the current level. */
+  into: number;
+  /** Tokens the current level spans end to end. */
+  span: number;
+}
+
+/**
+ * The level a lifetime token count has reached.
+ *
+ * Thresholds grow geometrically, so the hundreds of millions real use reaches
+ * land in the low teens rather than running off the end of a table — early
+ * levels come quickly and later ones stay worth chasing.
+ */
+export function levelFor(tokens: number): Level {
+  const total = Math.max(0, tokens);
+
+  let level = 1;
+  let lower = 0;
+  let upper = LEVEL_BASE;
+  while (total >= upper) {
+    level++;
+    lower = upper;
+    upper = LEVEL_BASE * Math.pow(LEVEL_GROWTH, level - 1);
+  }
+
+  return { level, into: total - lower, span: upper - lower };
+}
+
 /** The day before `key`, both as `YYYY-MM-DD`. */
 function previousDay(key: string): string {
   const [year, month, day] = key.split('-').map(Number);

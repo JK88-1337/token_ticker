@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { burnRatePerHour, comboLength, dailyStreak } from '../src/core/momentum.js';
+import { burnRatePerHour, comboLength, comboTier, dailyStreak, levelFor } from '../src/core/momentum.js';
 
 const SECOND = 1000;
 const at = (secondsAgo: number, now: number) => new Date(now - secondsAgo * SECOND).toISOString();
@@ -90,5 +90,62 @@ describe('dailyStreak', () => {
 
   it('is nothing without any usage', () => {
     expect(dailyStreak([], '2026-08-21')).toBe(0);
+  });
+});
+
+describe('comboTier', () => {
+  it('has no name for a run too short to brag about', () => {
+    expect(comboTier(0)).toBeNull();
+    expect(comboTier(1)).toBeNull();
+  });
+
+  it('names a run once it gets going', () => {
+    expect(comboTier(3)).not.toBeNull();
+  });
+
+  it('climbs as the run gets longer', () => {
+    const short = comboTier(3)!;
+    const long = comboTier(40)!;
+
+    expect(long.rank).toBeGreaterThan(short.rank);
+    expect(long.name).not.toBe(short.name);
+  });
+
+  it('stays at the top tier rather than running out of names', () => {
+    expect(comboTier(10_000)).toEqual(comboTier(50));
+  });
+});
+
+describe('levelFor', () => {
+  it('starts everyone at level one with nothing behind them', () => {
+    const level = levelFor(0);
+
+    expect(level.level).toBe(1);
+    expect(level.into).toBe(0);
+  });
+
+  it('promotes on reaching the next threshold', () => {
+    const before = levelFor(999_999);
+    const after = levelFor(1_000_000);
+
+    expect(before.level).toBe(1);
+    expect(after.level).toBe(2);
+  });
+
+  it('reports progress as a fraction of the current level, never past it', () => {
+    const level = levelFor(1_300_000);
+
+    expect(level.level).toBe(2);
+    expect(level.into / level.span).toBeGreaterThan(0);
+    expect(level.into / level.span).toBeLessThan(1);
+  });
+
+  it('keeps climbing at the scale real usage reaches', () => {
+    // Hundreds of millions of tokens should land in the low teens, not off
+    // the end of a table.
+    const level = levelFor(345_000_000);
+
+    expect(level.level).toBeGreaterThan(8);
+    expect(level.level).toBeLessThan(20);
   });
 });
