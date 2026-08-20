@@ -46,8 +46,13 @@ npm run scan -- --by-project
 
 `scan` is a development tool, not the app. It prints what the core parser makes
 of your real transcripts — file and line counts, how many duplicate sightings
-were dropped, and token totals broken down by model — so the numbers can be
-checked against reality.
+were dropped, and cost and token totals broken down by model — so the numbers
+can be checked against reality.
+
+Rates live in [src/core/pricing-table.json](src/core/pricing-table.json).
+Correcting a price or adding a model is a data edit, not a code change. The
+table records where its numbers came from and when they were last checked;
+verify against that source before trusting a total.
 
 For breakpoints, VS Code launch configurations are checked in: **Debug tests**,
 **Debug current test file**, and **Debug scan (real transcripts)**.
