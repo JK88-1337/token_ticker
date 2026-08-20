@@ -43,6 +43,17 @@ function str(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
+/**
+ * Settles the one way the same directory is spelled two ways.
+ *
+ * Transcripts record `cwd` with either drive-letter case depending on how the
+ * session was started. Windows paths are case-insensitive, so leaving both
+ * spellings intact splits one project's usage across two entries.
+ */
+function normalisePath(path: string): string {
+  return /^[a-z]:/.test(path) ? path[0]!.toUpperCase() + path.slice(1) : path;
+}
+
 function num(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
@@ -118,7 +129,7 @@ export function parseTranscriptLine(line: string): UsageRecord | null {
     timestamp: str(parsed.timestamp) ?? '',
     model: str(message.model) ?? 'unknown',
     sessionId: str(parsed.sessionId) ?? '',
-    projectPath: str(parsed.cwd) ?? '',
+    projectPath: normalisePath(str(parsed.cwd) ?? ''),
     gitBranch: str(parsed.gitBranch),
     isSidechain: parsed.isSidechain === true,
     speed: str(message.usage.speed) ?? 'standard',

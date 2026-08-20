@@ -89,6 +89,16 @@ describe('parseTranscriptLine', () => {
     });
   });
 
+  it('normalises the drive letter so one project is not counted as two', () => {
+    // Real transcripts record the same directory as both `C:\...` and `c:\...`
+    // depending on how the session was started. Windows paths are
+    // case-insensitive, so leaving it alone splits a project's usage in half.
+    const upper = parseTranscriptLine(assistantLine({ cwd: 'C:\\projects\\demo' }));
+    const lower = parseTranscriptLine(assistantLine({ cwd: 'c:\\projects\\demo' }));
+
+    expect(lower?.projectPath).toBe(upper?.projectPath);
+  });
+
   it('falls back to the message id when a line has no requestId', () => {
     const record = parseTranscriptLine(assistantLine({ requestId: null }));
     expect(record?.requestId).toBe('msg_0001');
