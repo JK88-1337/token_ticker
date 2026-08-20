@@ -8,11 +8,17 @@ import { useEffect, useRef, useState } from 'react';
  * closes from below, so the count on screen is never ahead of what actually
  * happened.
  *
- * The default travel time is close to the median gap between arrivals
- * (measured at about six seconds, a quarter of them under three), which keeps
- * the digits usually still moving when the next figure lands.
+ * The travel is deliberately longer than the gap between arrivals (measured
+ * at about six seconds on a working session), so the digits are still moving
+ * when the next figure lands and the count is never sitting idle. The cost is
+ * a small standing lag while work is heavy, which resolves the moment it
+ * stops — and lagging is the safe direction.
+ *
+ * The curve is close to linear rather than an ease-out. An ease-out spends
+ * most of its time barely moving at the end, which is exactly the stall this
+ * is meant to avoid.
  */
-export function useAnimatedValue(target: number, durationMs = 2400): number {
+export function useAnimatedValue(target: number, durationMs = 15_000): number {
   const [display, setDisplay] = useState(target);
   const displayRef = useRef(target);
   displayRef.current = display;
@@ -27,7 +33,8 @@ export function useAnimatedValue(target: number, durationMs = 2400): number {
 
     const step = (at: number) => {
       const progress = Math.min((at - startedAt) / durationMs, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
+      // Near-linear: a gentle finish, no long tail.
+      const eased = 1 - Math.pow(1 - progress, 1.6);
       setDisplay(from + distance * eased);
       if (progress < 1) frame = requestAnimationFrame(step);
     };

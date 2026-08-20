@@ -85,6 +85,7 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
   })();
 
   const lifetime = totalTokens(snapshot.totals.tokens);
+  const lifetimeShown = useAnimatedValue(lifetime);
   const level = levelFor(lifetime);
   const previousLevel = usePrevious(level.level);
   const levelledUp = previousLevel !== undefined && level.level > previousLevel;
@@ -102,6 +103,9 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
 
   const w = snapshot.window.totals.tokens;
   const windowUsed = workTokens(w);
+  // Rolls like the headline does. This one can fall as well as rise, since old
+  // turns age out of the window — the ease handles either direction.
+  const windowShown = useAnimatedValue(windowUsed);
   const peak = workTokens(snapshot.peak.totals.tokens);
   const ceiling = snapshot.observedCeiling ?? (peak > 0 ? peak : null);
   const gauge = pressure(windowUsed, ceiling);
@@ -207,7 +211,7 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
           <span className="limit-state">{gauge.label}</span>
         </div>
         <div className="limit-figure">
-          <Odometer value={full(windowUsed)} />
+          <Odometer value={full(windowShown)} />
           <span className="limit-of">{ceiling ? `of ${full(ceiling)}` : ''}</span>
         </div>
         <div className="meter">
@@ -254,7 +258,9 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
       <div className="mini-row">
         <div className="mini">
           <span className="mini-label">Lifetime</span>
-          <span className="mini-value">{full(lifetime)}</span>
+          <span className="mini-value">
+            <Odometer value={full(lifetimeShown)} />
+          </span>
         </div>
         <div className="mini">
           <span className="mini-label">Worth</span>
