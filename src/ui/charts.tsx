@@ -89,6 +89,57 @@ export function DailyBars({ buckets }: { buckets: UsageBucket[] }) {
   );
 }
 
+export interface GrowthPoint {
+  /** Epoch milliseconds. */
+  t: number;
+  /** Cumulative tokens at that moment. */
+  v: number;
+}
+
+/**
+ * Today's running total, drawn as it grows.
+ *
+ * The domain is midnight to now, so the line always reaches the right edge and
+ * stretches as the day goes on. It only ever climbs — that is the whole appeal
+ * — and the head of the line marks where the count stands this second.
+ *
+ * The stroke keeps its width under the non-uniform scale, which is what lets
+ * the plot fill whatever space the card has without measuring it.
+ */
+export function GrowthLine({
+  points,
+  from,
+  to,
+}: {
+  points: readonly GrowthPoint[];
+  from: number;
+  to: number;
+}) {
+  if (points.length === 0 || to <= from) return <div className="growth empty" />;
+
+  const peak = points[points.length - 1]!.v || 1;
+  const x = (t: number) => ((t - from) / (to - from)) * 100;
+  const y = (v: number) => 100 - (v / peak) * 100;
+
+  // Held flat from the last turn to now: nothing has been spent since.
+  const plotted = [...points, { t: to, v: points[points.length - 1]!.v }];
+  const line = plotted.map((point) => `${x(point.t).toFixed(3)},${y(point.v).toFixed(3)}`).join(' L');
+  const head = plotted[plotted.length - 1]!;
+
+  return (
+    <div className="growth">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+        <path className="growth-area" d={`M${line} L100,100 L0,100 Z`} />
+        <path className="growth-line" d={`M${line}`} vectorEffect="non-scaling-stroke" />
+      </svg>
+      <span
+        className="growth-head"
+        style={{ left: `${x(head.t)}%`, top: `${y(head.v)}%` }}
+      />
+    </div>
+  );
+}
+
 export interface BreakdownItem {
   key: string;
   label: string;

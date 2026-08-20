@@ -1,5 +1,6 @@
 import {
   peakWindowTokens,
+  totalTokens,
   windowTokens,
   workTokens,
   type LimitEvent,
@@ -10,9 +11,10 @@ import type { SpendEvent } from './momentum.js';
 import { priceRecord, type PricingTable } from './pricing.js';
 import type { UsageRecord } from './records.js';
 
+import { bucketBy, bucketByDay, totalUsage, type UsageBucket, type UsageTotals } from './summary.js';
+
 /** The rolling allowance window Claude Code calls a session. */
 export const SESSION_WINDOW_MS = 5 * 60 * 60 * 1000;
-import { bucketBy, bucketByDay, totalUsage, type UsageBucket, type UsageTotals } from './summary.js';
 
 /**
  * Everything the dashboard draws, in one serialisable object.
@@ -117,5 +119,9 @@ function recentEvents(records: readonly UsageRecord[], table: PricingTable): Spe
   return [...records]
     .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp))
     .slice(-RECENT_LIMIT)
-    .map((record) => ({ at: record.timestamp, usd: priceRecord(record, table).usd }));
+    .map((record) => ({
+      at: record.timestamp,
+      usd: priceRecord(record, table).usd,
+      tokens: totalTokens(record.tokens),
+    }));
 }

@@ -18,6 +18,16 @@ export function count(value: number): string {
   return value.toLocaleString('en-US');
 }
 
+/**
+ * Every digit, grouped.
+ *
+ * The headline figures are shown in full rather than abbreviated: `1,247,882`
+ * has seven digits that move, `1.2M` has two. Watching them move is the point.
+ */
+export function full(value: number): string {
+  return Math.round(value).toLocaleString('en-US');
+}
+
 /** `2026-08-20` in the viewer's zone — the key `byDay` is bucketed under. */
 export function todayKey(timeZone: string): string {
   return new Intl.DateTimeFormat('en-CA', {

@@ -107,7 +107,7 @@ body {
 .hud {
   height: 100dvh;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 10px;
   padding: 10px 12px 12px;
 }
@@ -115,17 +115,72 @@ body {
 .hud-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 2px;
+  gap: 12px;
+  padding: 2px 4px 8px;
+  border-bottom: 1px solid var(--border);
 }
 
-.brand {
+/* The wordmark carries the split the name already has: a quiet noun and the
+   part that moves. */
+.wordmark {
+  display: inline-flex;
+  align-items: baseline;
   font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
-.brand-tag,
+.wordmark-a {
+  color: var(--text-muted);
+}
+
+.wordmark-b {
+  color: var(--text-primary);
+}
+
+/* Reads live only when a turn really landed inside the combo window. */
+.signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 2px 8px 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+
+.signal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--baseline);
+}
+
+.signal.on {
+  color: var(--status-good);
+  border-color: color-mix(in oklab, var(--status-good) 45%, transparent);
+}
+
+.signal.on .signal-dot {
+  background: var(--status-good);
+  animation: blink 1.8s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--status-good) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in oklab, var(--status-good) 0%, transparent);
+  }
+}
+
 .hud-zone {
   font-size: 10px;
   letter-spacing: 0.14em;
@@ -148,11 +203,13 @@ body {
 
 .board {
   display: grid;
-  grid-template-columns: 1.4fr 0.85fr 1.5fr;
+  grid-template-columns: 1.5fr 0.8fr 1.35fr;
+  grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
     'score combo limit'
     'mini  mini  mini';
   gap: 10px;
+  min-height: 0;
 }
 
 @media (max-width: 900px) {
@@ -211,6 +268,9 @@ body {
 
 .score {
   grid-area: score;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 .combo-card {
   grid-area: combo;
@@ -249,7 +309,7 @@ body {
 
 .score-figure {
   position: relative;
-  font-size: clamp(38px, 5.2vw, 64px);
+  font-size: clamp(40px, 6.2vw, 78px);
   font-weight: 700;
   letter-spacing: -0.035em;
   line-height: 1.02;
@@ -259,6 +319,68 @@ body {
    itself is the same measured number either way. */
 .board.live .score-figure {
   text-shadow: 0 0 22px color-mix(in oklab, var(--series-1) 45%, transparent);
+}
+
+.rate-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.rate {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--series-1);
+}
+
+.rate .per {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.rate-note {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Progress toward the best day on record. */
+.record {
+  height: 6px;
+  background: var(--gridline);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+.record-fill {
+  height: 100%;
+  background: var(--series-1);
+  transition: width 700ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.record-fill.beaten {
+  background: var(--status-good);
+}
+
+.record-chip {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  padding: 2px 7px;
+  border-radius: 2px;
+  color: var(--status-good);
+  border: 1px solid var(--status-good);
 }
 
 .score-note {
@@ -388,7 +510,13 @@ body {
   padding: 9px 12px;
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.level-mini .xp {
+  flex-basis: 100%;
+  margin-top: 2px;
 }
 
 .mini-value {
@@ -411,6 +539,7 @@ body {
 /* ---- Detail viewport --------------------------------------------------- */
 
 .detail {
+  height: clamp(132px, 22vh, 220px);
   position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -468,6 +597,62 @@ body {
   padding: 14px 16px 16px;
   display: flex;
   flex-direction: column;
+}
+
+/* ---- Growth line ------------------------------------------------------- */
+
+.growth {
+  position: relative;
+  flex: 1;
+  min-height: 54px;
+  margin-top: 12px;
+}
+
+.growth svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.growth-area {
+  fill: color-mix(in oklab, var(--series-1) 16%, transparent);
+}
+
+.growth-line {
+  fill: none;
+  stroke: var(--series-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* The head marks where the count stands this second. */
+.growth-head {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: var(--series-1);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--series-1) 24%, transparent);
+}
+
+.board.live .growth-head {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--series-1) 24%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 8px color-mix(in oklab, var(--series-1) 6%, transparent);
+  }
+}
+
+.growth.empty {
+  border-bottom: 1px solid var(--gridline);
 }
 
 /* ---- Daily bars -------------------------------------------------------- */
@@ -763,7 +948,9 @@ body {
     transition: none;
   }
   .floater,
-  .board.live .combo-figure {
+  .board.live .combo-figure,
+  .board.live .growth-head,
+  .signal.on .signal-dot {
     animation: none;
   }
   .floater {

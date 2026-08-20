@@ -47,7 +47,7 @@ function toItems(
 export function App() {
   const [snapshot, setSnapshot] = useState<UsageSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>('days');
+  const [tab, setTab] = useState<Tab>('models');
 
   useEffect(() => {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -90,6 +90,11 @@ export function App() {
 
   const { totals, byDay, byModel, byProject, timeZone, limitHits } = snapshot;
 
+  // "Live" means a turn landed recently enough to still be part of a run —
+  // the same two minutes the combo uses, so the two never disagree.
+  const lastAt = snapshot.recent.at(-1)?.at;
+  const live = lastAt ? Date.now() - Date.parse(lastAt) < 120_000 : false;
+
   const tabs: { id: Tab; label: string; hint: string }[] = [
     { id: 'days', label: 'Days', hint: `${byDay.length}` },
     { id: 'models', label: 'Models', hint: `${byModel.length}` },
@@ -100,13 +105,22 @@ export function App() {
   return (
     <div className="hud">
       <header className="hud-bar">
-        <span className="brand">token_ticker</span>
-        <span className="brand-tag">unofficial</span>
+        <span className="wordmark">
+          <span className="wordmark-a">token</span>
+          <span className="wordmark-b">_ticker</span>
+        </span>
+
+        <span className={live ? 'signal on' : 'signal'}>
+          <span className="signal-dot" />
+          {live ? 'live' : 'idle'}
+        </span>
+
         <span className="hud-bar-spacer" />
+
         {totals.unpricedTurns > 0 ? (
           <span className="hud-warn">{count(totals.unpricedTurns)} turns unpriced</span>
         ) : null}
-        <span className="hud-zone">{timeZone}</span>
+        <span className="hud-zone">unofficial · {timeZone}</span>
       </header>
 
       <Scoreboard snapshot={snapshot} />

@@ -36,9 +36,42 @@ export function comboLength(timestamps: readonly string[], now: number, gapMs: n
 export interface SpendEvent {
   at: string;
   usd: number;
+  /** Every token class added together. */
+  tokens: number;
 }
 
 const HOUR_MS = 60 * 60 * 1000;
+
+/** Adds up one field of the turns inside a trailing window. */
+function overWindow(
+  events: readonly SpendEvent[],
+  now: number,
+  windowMs: number,
+  pick: (event: SpendEvent) => number,
+): number {
+  const since = now - windowMs;
+  let total = 0;
+  for (const event of events) {
+    const at = Date.parse(event.at);
+    if (Number.isFinite(at) && at >= since && at <= now) total += pick(event);
+  }
+  return total;
+}
+
+/**
+ * Tokens per second over the trailing window.
+ *
+ * The window slides whether or not anything new arrives, so this rises the
+ * moment a turn lands and drifts back down on its own while you read it.
+ */
+export function tokenRatePerSecond(
+  events: readonly SpendEvent[],
+  now: number,
+  windowMs: number,
+): number {
+  if (windowMs <= 0) return 0;
+  return (overWindow(events, now, windowMs, (event) => event.tokens) * 1000) / windowMs;
+}
 
 /**
  * What the last `windowMs` would come to if it kept up for an hour.
@@ -54,13 +87,7 @@ export function burnRatePerHour(
 ): number {
   if (windowMs <= 0) return 0;
 
-  const since = now - windowMs;
-  let spent = 0;
-  for (const event of events) {
-    const at = Date.parse(event.at);
-    if (Number.isFinite(at) && at >= since && at <= now) spent += event.usd;
-  }
-
+  const spent = overWindow(events, now, windowMs, (event) => event.usd);
   return spent === 0 ? 0 : (spent * HOUR_MS) / windowMs;
 }
 

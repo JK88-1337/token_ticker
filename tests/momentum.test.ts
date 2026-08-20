@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { burnRatePerHour, comboLength, comboTier, dailyStreak, levelFor } from '../src/core/momentum.js';
+import {
+  burnRatePerHour,
+  comboLength,
+  comboTier,
+  dailyStreak,
+  levelFor,
+  tokenRatePerSecond,
+} from '../src/core/momentum.js';
 
 const SECOND = 1000;
 const at = (secondsAgo: number, now: number) => new Date(now - secondsAgo * SECOND).toISOString();
@@ -43,8 +50,8 @@ describe('burnRatePerHour', () => {
   it('projects what the last window would cost if it kept up for an hour', () => {
     const rate = burnRatePerHour(
       [
-        { at: at(600, now), usd: 2 },
-        { at: at(60, now), usd: 4 },
+        { at: at(600, now), usd: 2, tokens: 0 },
+        { at: at(60, now), usd: 4, tokens: 0 },
       ],
       now,
       halfHour,
@@ -56,8 +63,8 @@ describe('burnRatePerHour', () => {
   it('ignores spend from before the window', () => {
     const rate = burnRatePerHour(
       [
-        { at: at(4000, now), usd: 100 },
-        { at: at(60, now), usd: 3 },
+        { at: at(4000, now), usd: 100, tokens: 0 },
+        { at: at(60, now), usd: 3, tokens: 0 },
       ],
       now,
       halfHour,
@@ -68,7 +75,7 @@ describe('burnRatePerHour', () => {
 
   it('is zero when nothing has been spent lately', () => {
     expect(burnRatePerHour([], now, halfHour)).toBe(0);
-    expect(burnRatePerHour([{ at: at(9000, now), usd: 50 }], now, halfHour)).toBe(0);
+    expect(burnRatePerHour([{ at: at(9000, now), usd: 50, tokens: 0 }], now, halfHour)).toBe(0);
   });
 });
 
@@ -147,5 +154,40 @@ describe('levelFor', () => {
 
     expect(level.level).toBeGreaterThan(8);
     expect(level.level).toBeLessThan(20);
+  });
+});
+
+describe('tokenRatePerSecond', () => {
+  const now = Date.parse('2026-08-21T10:00:00Z');
+  const at = (secondsAgo: number) => new Date(now - secondsAgo * SECOND).toISOString();
+
+  it('averages the tokens of the window over its length', () => {
+    const rate = tokenRatePerSecond(
+      [
+        { at: at(90), usd: 0, tokens: 3000 },
+        { at: at(10), usd: 0, tokens: 3000 },
+      ],
+      now,
+      120 * SECOND,
+    );
+
+    expect(rate).toBeCloseTo(50, 10);
+  });
+
+  it('ignores turns from before the window', () => {
+    const rate = tokenRatePerSecond(
+      [
+        { at: at(9000), usd: 0, tokens: 999_999 },
+        { at: at(10), usd: 0, tokens: 600 },
+      ],
+      now,
+      60 * SECOND,
+    );
+
+    expect(rate).toBeCloseTo(10, 10);
+  });
+
+  it('falls to nothing when the window empties', () => {
+    expect(tokenRatePerSecond([], now, 60 * SECOND)).toBe(0);
   });
 });
