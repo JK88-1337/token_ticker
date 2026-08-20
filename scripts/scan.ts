@@ -13,6 +13,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { dedupeRecords } from '../src/core/ledger.js';
+import { defaultPricingTable, priceRecord } from '../src/core/pricing.js';
 import { parseTranscriptLine, type TokenCounts, type UsageRecord } from '../src/core/records.js';
 
 function transcriptFiles(root: string): string[] {
@@ -47,11 +48,18 @@ function total(records: readonly UsageRecord[]): TokenCounts {
   );
 }
 
-const n = (value: number) => value.toLocaleString('en-US');
+function usdTotal(records: readonly UsageRecord[]): number {
+  return records.reduce((acc, r) => acc + priceRecord(r, defaultPricingTable).usd, 0);
+}
 
-function printTotals(label: string, counts: TokenCounts): void {
+const n = (value: number) => value.toLocaleString('en-US');
+const usd = (value: number) => `$${value.toFixed(2)}`;
+
+function printTotals(label: string, records: readonly UsageRecord[]): void {
+  const counts = total(records);
   console.log(
-    `${label.padEnd(9)} in=${n(counts.input)}  out=${n(counts.output)}  ` +
+    `${label.padEnd(18)} ${usd(usdTotal(records)).padStart(10)}   ` +
+      `in=${n(counts.input)}  out=${n(counts.output)}  ` +
       `cache-read=${n(counts.cacheRead)}  cache-write=${n(counts.cacheWrite5m + counts.cacheWrite1h)}`,
   );
 }
@@ -76,8 +84,14 @@ console.log(`files     ${n(files.length)}`);
 console.log(`lines     ${n(lines)} read, ${n(parsed.length)} billable, ${n(records.length)} after dedupe`);
 console.log(`duplicates ${n(parsed.length - records.length)} repeat sightings dropped\n`);
 
-printTotals('raw', total(parsed));
-printTotals('deduped', total(records));
+printTotals('raw', parsed);
+printTotals('deduped', records);
+
+const unpriced = records.filter((r) => !priceRecord(r, defaultPricingTable).priced);
+if (unpriced.length > 0) {
+  const models = [...new Set(unpriced.map((r) => r.model))].join(', ');
+  console.log(`\n!! ${n(unpriced.length)} turns have no rate and count as $0 — add: ${models}`);
+}
 
 const byModel = new Map<string, UsageRecord[]>();
 for (const record of records) {
@@ -86,8 +100,8 @@ for (const record of records) {
   byModel.set(record.model, bucket);
 }
 console.log('\nby model');
-for (const [model, bucket] of [...byModel].sort((a, b) => b[1].length - a[1].length)) {
-  printTotals(`  ${model}`, total(bucket));
+for (const [model, bucket] of [...byModel].sort((a, b) => usdTotal(b[1]) - usdTotal(a[1]))) {
+  printTotals(`  ${model}`, bucket);
 }
 
 if (process.argv.includes('--by-project')) {
@@ -98,8 +112,8 @@ if (process.argv.includes('--by-project')) {
     byProject.set(record.projectPath, bucket);
   }
   console.log('\nby project');
-  for (const [project, bucket] of [...byProject].sort((a, b) => b[1].length - a[1].length)) {
-    printTotals(`  ${project}`, total(bucket));
+  for (const [project, bucket] of [...byProject].sort((a, b) => usdTotal(b[1]) - usdTotal(a[1]))) {
+    printTotals(`  ${project}`, bucket);
   }
 }
 
