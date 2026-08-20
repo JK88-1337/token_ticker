@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { burnRatePerHour, comboLength, dailyStreak } from '../src/core/momentum.js';
+import {
+  burnRatePerHour,
+  comboLength,
+  comboTier,
+  dailyStreak,
+  levelFor,
+  longestCombo,
+  tokenRatePerSecond,
+} from '../src/core/momentum.js';
 
 const SECOND = 1000;
 const at = (secondsAgo: number, now: number) => new Date(now - secondsAgo * SECOND).toISOString();
@@ -43,8 +51,8 @@ describe('burnRatePerHour', () => {
   it('projects what the last window would cost if it kept up for an hour', () => {
     const rate = burnRatePerHour(
       [
-        { at: at(600, now), usd: 2 },
-        { at: at(60, now), usd: 4 },
+        { at: at(600, now), usd: 2, tokens: 0, work: 0 },
+        { at: at(60, now), usd: 4, tokens: 0, work: 0 },
       ],
       now,
       halfHour,
@@ -56,8 +64,8 @@ describe('burnRatePerHour', () => {
   it('ignores spend from before the window', () => {
     const rate = burnRatePerHour(
       [
-        { at: at(4000, now), usd: 100 },
-        { at: at(60, now), usd: 3 },
+        { at: at(4000, now), usd: 100, tokens: 0, work: 0 },
+        { at: at(60, now), usd: 3, tokens: 0, work: 0 },
       ],
       now,
       halfHour,
@@ -68,7 +76,7 @@ describe('burnRatePerHour', () => {
 
   it('is zero when nothing has been spent lately', () => {
     expect(burnRatePerHour([], now, halfHour)).toBe(0);
-    expect(burnRatePerHour([{ at: at(9000, now), usd: 50 }], now, halfHour)).toBe(0);
+    expect(burnRatePerHour([{ at: at(9000, now), usd: 50, tokens: 0, work: 0 }], now, halfHour)).toBe(0);
   });
 });
 
@@ -90,5 +98,139 @@ describe('dailyStreak', () => {
 
   it('is nothing without any usage', () => {
     expect(dailyStreak([], '2026-08-21')).toBe(0);
+  });
+});
+
+describe('comboTier', () => {
+  it('has no name for a run too short to brag about', () => {
+    expect(comboTier(0)).toBeNull();
+    expect(comboTier(1)).toBeNull();
+  });
+
+  it('names a run once it gets going', () => {
+    expect(comboTier(3)).not.toBeNull();
+  });
+
+  it('climbs as the run gets longer', () => {
+    const short = comboTier(3)!;
+    const long = comboTier(40)!;
+
+    expect(long.rank).toBeGreaterThan(short.rank);
+    expect(long.name).not.toBe(short.name);
+  });
+
+  it('stays at the top tier rather than running out of names', () => {
+    expect(comboTier(10_000)).toEqual(comboTier(50));
+  });
+});
+
+describe('levelFor', () => {
+  it('starts everyone at level one with nothing behind them', () => {
+    const level = levelFor(0);
+
+    expect(level.level).toBe(1);
+    expect(level.into).toBe(0);
+  });
+
+  it('promotes on reaching the next threshold', () => {
+    const before = levelFor(999_999);
+    const after = levelFor(1_000_000);
+
+    expect(before.level).toBe(1);
+    expect(after.level).toBe(2);
+  });
+
+  it('reports progress as a fraction of the current level, never past it', () => {
+    const level = levelFor(1_300_000);
+
+    expect(level.level).toBe(2);
+    expect(level.into / level.span).toBeGreaterThan(0);
+    expect(level.into / level.span).toBeLessThan(1);
+  });
+
+  it('keeps climbing at the scale real usage reaches', () => {
+    // Hundreds of millions of tokens should land in the low teens, not off
+    // the end of a table.
+    const level = levelFor(345_000_000);
+
+    expect(level.level).toBeGreaterThan(8);
+    expect(level.level).toBeLessThan(20);
+  });
+});
+
+describe('tokenRatePerSecond', () => {
+  const now = Date.parse('2026-08-21T10:00:00Z');
+  const at = (secondsAgo: number) => new Date(now - secondsAgo * SECOND).toISOString();
+
+  it('averages the tokens of the window over its length', () => {
+    const rate = tokenRatePerSecond(
+      [
+        { at: at(90), usd: 0, tokens: 3000, work: 3000 },
+        { at: at(10), usd: 0, tokens: 3000, work: 3000 },
+      ],
+      now,
+      120 * SECOND,
+    );
+
+    expect(rate).toBeCloseTo(50, 10);
+  });
+
+  it('ignores turns from before the window', () => {
+    const rate = tokenRatePerSecond(
+      [
+        { at: at(9000), usd: 0, tokens: 999_999, work: 999_999 },
+        { at: at(10), usd: 0, tokens: 600, work: 600 },
+      ],
+      now,
+      60 * SECOND,
+    );
+
+    expect(rate).toBeCloseTo(10, 10);
+  });
+
+  it('falls to nothing when the window empties', () => {
+    expect(tokenRatePerSecond([], now, 60 * SECOND)).toBe(0);
+  });
+});
+
+describe('longestCombo', () => {
+  const base = Date.parse('2026-08-21T00:00:00Z');
+  const stamp = (seconds: number) => new Date(base + seconds * SECOND).toISOString();
+  const gap = 120 * SECOND;
+
+  it('finds the longest unbroken run in the whole history', () => {
+    const best = longestCombo(
+      [
+        // A run of two.
+        stamp(0),
+        stamp(60),
+        // Long pause, then a run of four.
+        stamp(5000),
+        stamp(5060),
+        stamp(5120),
+        stamp(5180),
+        // Another pause, then a run of three.
+        stamp(9000),
+        stamp(9060),
+        stamp(9120),
+      ],
+      gap,
+    );
+
+    expect(best).toBe(4);
+  });
+
+  it('counts a lone turn as a run of one', () => {
+    expect(longestCombo([stamp(0)], gap)).toBe(1);
+  });
+
+  it('is nothing without any turns', () => {
+    expect(longestCombo([], gap)).toBe(0);
+  });
+
+  it('does not depend on the order it was handed', () => {
+    const shuffled = [stamp(120), stamp(0), stamp(60)];
+
+    expect(longestCombo(shuffled, gap)).toBe(3);
   });
 });

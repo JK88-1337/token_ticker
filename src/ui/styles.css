@@ -14,6 +14,7 @@
   --gridline: #e1e0d9;
   --baseline: #c3c2b7;
   --border: rgba(11, 11, 11, 0.1);
+  --bracket: rgba(11, 11, 11, 0.22);
 
   /* Categorical slots, in the fixed order the palette validates in. */
   --series-1: #2a78d6;
@@ -24,6 +25,12 @@
   --series-6: #008300;
   --series-7: #4a3aa7;
   --series-8: #e34948;
+
+  /* Status is fixed, never themed, and never reused as a series colour. It
+     always ships beside wording, so state is never carried by colour alone. */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-critical: #d03b3b;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -38,6 +45,7 @@
     --gridline: #2c2c2a;
     --baseline: #383835;
     --border: rgba(255, 255, 255, 0.1);
+    --bracket: rgba(255, 255, 255, 0.26);
 
     --series-1: #3987e5;
     --series-2: #d95926;
@@ -61,6 +69,7 @@
   --gridline: #2c2c2a;
   --baseline: #383835;
   --border: rgba(255, 255, 255, 0.1);
+  --bracket: rgba(255, 255, 255, 0.26);
 
   --series-1: #3987e5;
   --series-2: #d95926;
@@ -76,8 +85,16 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
   margin: 0;
+  /* The HUD is sized to the viewport; nothing about it should scroll the page. */
+  overflow: hidden;
   background: var(--page);
   color: var(--text-primary);
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -85,181 +102,332 @@ body {
   line-height: 1.5;
 }
 
-.app {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 32px 24px 64px;
+/* ---- Frame ------------------------------------------------------------- */
+
+.hud {
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 10px 12px 12px;
 }
 
-.masthead {
+.hud-bar {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 4px;
+  padding: 2px 4px 8px;
+  border-bottom: 1px solid var(--border);
 }
 
-.masthead h1 {
-  font-size: 20px;
-  font-weight: 650;
-  margin: 0;
-  letter-spacing: -0.01em;
+/* The wordmark carries the split the name already has: a quiet noun and the
+   part that moves. */
+.wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
-.masthead .tag {
-  font-size: 12px;
+.wordmark-a {
   color: var(--text-muted);
 }
 
-.masthead .spacer {
+.wordmark-b {
+  color: var(--text-primary);
+}
+
+/* Reads live only when a turn really landed inside the combo window. */
+.signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 2px 8px 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+
+.signal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--baseline);
+}
+
+.signal.live {
+  color: var(--status-good);
+  border-color: color-mix(in oklab, var(--status-good) 45%, transparent);
+}
+
+.signal.live .signal-dot {
+  background: var(--status-good);
+  animation: blink 1.8s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--status-good) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in oklab, var(--status-good) 0%, transparent);
+  }
+}
+
+.hud-zone {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.hud-bar-spacer {
   flex: 1;
 }
 
-.subhead {
-  color: var(--text-secondary);
-  margin: 0 0 28px;
-  font-size: 13px;
+.hud-warn {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--status-critical);
 }
 
-/* ---- Odometer ---------------------------------------------------------- */
+/* ---- Scoreboard -------------------------------------------------------- */
 
-.odo {
-  display: inline-flex;
-  align-items: baseline;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
-.odo-fixed {
-  display: inline-block;
-}
-
-.odo-slot {
-  display: inline-block;
-  height: 1em;
-  width: 0.6em;
-  overflow: hidden;
-}
-
-.odo-reel {
-  display: flex;
-  flex-direction: column;
-  transition: transform 700ms cubic-bezier(0.2, 0.9, 0.2, 1);
-}
-
-.odo-reel > span {
-  height: 1em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* ---- Live panel -------------------------------------------------------- */
-
-.momentum {
+.board {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(300px, 1.15fr);
-  gap: 14px;
-  margin-bottom: 20px;
+  grid-template-columns: 1.5fr 0.8fr 1.35fr;
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'score combo limit'
+    'mini  mini  mini';
+  gap: 10px;
+  min-height: 0;
 }
 
-@media (max-width: 720px) {
-  .momentum {
-    grid-template-columns: 1fr;
+@media (max-width: 900px) {
+  .board {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      'score combo'
+      'limit limit'
+      'mini  mini';
   }
 }
 
-.hero {
+.score,
+.combo-card,
+.limit-card,
+.mini {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 20px 22px;
+  border-radius: 4px;
 }
 
-.hero-label,
-.gauge-label {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
+.score,
+.combo-card,
+.limit-card {
+  padding: 14px 16px;
 }
 
-.hero-figure {
-  position: relative;
-  font-size: 54px;
-  font-weight: 650;
-  letter-spacing: -0.03em;
-}
-
-.hero-note {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 10px;
-}
-
-.floaters {
+.score::before,
+.score::after,
+.limit-card::before,
+.limit-card::after {
+  content: '';
   position: absolute;
-  left: 100%;
-  top: 0;
-  margin-left: 10px;
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--bracket);
   pointer-events: none;
 }
 
-.floater {
-  position: absolute;
-  white-space: nowrap;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--series-3);
-  animation: float-up 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+.score::before,
+.limit-card::before {
+  top: -1px;
+  left: -1px;
+  border-right: none;
+  border-bottom: none;
 }
 
-@keyframes float-up {
-  0% {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  18% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(-34px);
-  }
+.score::after,
+.limit-card::after {
+  bottom: -1px;
+  right: -1px;
+  border-left: none;
+  border-top: none;
 }
 
-.gauges {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
+.score {
+  grid-area: score;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.combo-card {
+  grid-area: combo;
+  display: flex;
+  flex-direction: column;
+}
+.limit-card {
+  grid-area: limit;
 }
 
-.gauge {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 16px 18px;
+.score-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
 }
 
-.gauge-value {
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+.score-label,
+.mini-label {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.level-chip {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 2px 7px;
+  border-radius: 2px;
+  border: 1px solid var(--bracket);
+  color: var(--text-secondary);
+}
+
+.score-figure {
+  position: relative;
+  font-size: clamp(40px, 6.2vw, 78px);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+}
+
+/* A live run lifts the score off the surface. Decoration only — the figure
+   itself is the same measured number either way. */
+.board.live .score-figure {
+  text-shadow: 0 0 22px color-mix(in oklab, var(--series-1) 45%, transparent);
+}
+
+.rate-line {
   display: flex;
   align-items: baseline;
-  gap: 3px;
-  line-height: 1.15;
+  gap: 10px;
+  margin-top: 6px;
 }
 
-.gauge-value .per {
-  font-size: 13px;
-  font-weight: 500;
+.rate {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--series-1);
+}
+
+.rate .per {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--text-muted);
 }
 
-.gauge-note {
-  font-size: 11px;
+.rate-note {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Progress toward the best day on record. */
+.record {
+  height: 6px;
+  background: var(--gridline);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+.record-fill {
+  height: 100%;
+  background: var(--series-1);
+  transition: width 700ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.record-fill.beaten {
+  background: var(--status-good);
+}
+
+.record-chip {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  padding: 2px 7px;
+  border-radius: 2px;
+  color: var(--status-good);
+  border: 1px solid var(--status-good);
+}
+
+.score-note {
+  font-size: 10px;
   color: var(--text-muted);
   margin-top: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.xp {
+  height: 3px;
+  background: var(--gridline);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.xp-fill {
+  height: 100%;
+  background: var(--series-1);
+  transition: width 700ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.combo-figure {
+  font-size: clamp(30px, 3.6vw, 46px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  margin-top: 2px;
+}
+
+.board.live .combo-figure {
+  animation: punch 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.combo-tier {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.board.live .combo-tier {
+  color: var(--text-secondary);
 }
 
 .decay {
@@ -267,7 +435,7 @@ body {
   background: var(--gridline);
   border-radius: 2px;
   overflow: hidden;
-  margin-top: 10px;
+  margin-top: auto;
 }
 
 .decay-fill {
@@ -276,109 +444,455 @@ body {
   transition: width 1s linear;
 }
 
-.combo.live .decay-fill {
+.board.live .decay-fill {
   background: var(--series-1);
 }
 
-.combo.live .gauge-value {
-  animation: punch 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+/* Session allowance. Colour is backed by the wording beside it, never alone. */
+.limit-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: clamp(26px, 3vw, 38px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
 }
 
-@keyframes punch {
+.limit-of {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0;
+}
+
+.limit-state {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.meter {
+  height: 8px;
+  background: var(--gridline);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.meter-fill {
+  height: 100%;
+  background: var(--series-1);
+  transition: width 700ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.limit-card.warning .meter-fill {
+  background: var(--status-warning);
+}
+.limit-card.critical .meter-fill {
+  background: var(--status-critical);
+}
+.limit-card.critical .limit-state {
+  color: var(--status-critical);
+}
+
+.mini-row {
+  grid-area: mini;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.mini {
+  padding: 9px 12px;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.level-mini .xp {
+  flex-basis: 100%;
+  margin-top: 2px;
+}
+
+.mini-value {
+  margin-left: auto;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-value .per {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* ---- Detail viewport --------------------------------------------------- */
+
+.detail {
+  height: clamp(132px, 22vh, 220px);
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 7px 13px 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.tab:hover {
+  color: var(--text-secondary);
+}
+
+.tab.on {
+  color: var(--text-primary);
+  border-bottom-color: var(--series-1);
+}
+
+.tab-hint {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* A turn landing lights the card's edge, then fades. */
+.hit-ring {
+  position: absolute;
+  inset: -1px;
+  border-radius: 4px;
+  pointer-events: none;
+  animation: hit 700ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes hit {
   0% {
-    transform: scale(1);
-  }
-  32% {
-    transform: scale(1.16);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--series-1) 85%, transparent);
+    background: color-mix(in oklab, var(--series-1) 9%, transparent);
   }
   100% {
-    transform: scale(1);
+    box-shadow: inset 0 0 0 1px transparent;
+    background: transparent;
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .odo-reel,
-  .decay-fill {
-    transition: none;
-  }
-  .floater,
-  .combo.live .gauge-value {
-    animation: none;
-  }
-  .floater {
-    opacity: 1;
-  }
+.combo-best {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
-.tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  margin-bottom: 28px;
+/* The ladder shows the whole scale, so the next rung is visible before it is
+   reached rather than only once it lands. */
+.ladder {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-height: 0;
+  justify-content: flex-end;
 }
 
-.tile {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 16px 18px;
+.rung {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  opacity: 0.5;
+  padding-left: 8px;
+  border-left: 2px solid transparent;
+  transition: opacity 300ms ease, color 300ms ease;
 }
 
-.tile .label {
-  font-size: 12px;
+.rung-at {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.rung.on {
+  opacity: 1;
   color: var(--text-secondary);
-  margin-bottom: 6px;
+  border-left-color: var(--series-1);
 }
 
-.tile .value {
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
-}
-
-.tile .note {
+.worth {
   font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 4px;
+  font-weight: 650;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
-.panel {
+/* A level-up sweeps the bar it just filled. */
+.level-mini.levelled .xp-fill {
+  animation: sweep 900ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes sweep {
+  0% {
+    filter: brightness(2.1);
+  }
+  100% {
+    filter: none;
+  }
+}
+
+.record-chip {
+  animation: chip 1.9s ease-in-out infinite;
+}
+
+@keyframes chip {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--status-good) 40%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--status-good) 0%, transparent);
+  }
+}
+
+/* ---- Growth line ------------------------------------------------------- */
+
+.growth {
+  position: relative;
+  flex: 1;
+  min-height: 54px;
+  margin-top: 12px;
+}
+
+.growth svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.growth-area {
+  fill: color-mix(in oklab, var(--series-1) 16%, transparent);
+}
+
+.growth-line {
+  fill: none;
+  stroke: var(--series-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* The head marks where the count stands this second. */
+.growth-head {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: var(--series-1);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--series-1) 24%, transparent);
+}
+
+.board.live .growth-head {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+/* One ring per arrival, expanding out of the head. */
+.growth-ping {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--series-1);
+  animation: ping 900ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+
+@keyframes ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(5.5);
+    opacity: 0;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--series-1) 24%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 8px color-mix(in oklab, var(--series-1) 6%, transparent);
+  }
+}
+
+.growth.empty {
+  border-bottom: 1px solid var(--gridline);
+}
+
+/* ---- Daily bars -------------------------------------------------------- */
+
+.chart {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bars-frame {
+  display: flex;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+.bars-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  flex: none;
+  width: 48px;
+}
+
+/* 2px of surface between adjacent bars; 4px rounded data-end on top, square
+   where the bar meets the baseline. */
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  border-bottom: 1px solid var(--baseline);
+}
+
+.bar-col {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  min-width: 3px;
+  cursor: default;
+}
+
+.bar-fill {
+  width: 100%;
+  background: var(--series-1);
+  border-radius: 4px 4px 0 0;
+  transition: height 500ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.bar-col:hover .bar-fill {
+  opacity: 0.72;
+}
+
+.bars-labels {
+  display: flex;
+  gap: 2px;
+  margin-top: 6px;
+  padding-left: 58px;
+  font-size: 10px;
+  color: var(--text-muted);
+  flex: none;
+}
+
+.bars-labels span {
+  flex: 1;
+  min-width: 3px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.bars-labels .peak {
+  color: var(--text-secondary);
+}
+
+.tooltip {
+  position: absolute;
+  pointer-events: none;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 18px;
-  margin-bottom: 20px;
+  border-radius: 4px;
+  padding: 7px 9px;
+  font-size: 11px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  white-space: nowrap;
+  z-index: 2;
+  transform: translateX(-50%);
 }
 
-.panel h2 {
-  font-size: 13px;
-  font-weight: 600;
-  margin: 0 0 2px;
+.tooltip .tip-title {
+  font-weight: 650;
+  margin-bottom: 2px;
 }
 
-.panel .caption {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin: 0 0 16px;
+.tooltip .tip-row {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
-.columns {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 20px;
-}
+/* ---- Breakdown rows ---------------------------------------------------- */
 
-.columns .panel {
-  margin-bottom: 0;
-}
-
-/* Breakdown rows: a bar with its identity and value beside it, never colour
-   alone — which is also the relief for the sub-3:1 slots in light mode. */
+/* Every row is directly labelled, so identity never rests on colour — which is
+   also the relief for the slots that sit below 3:1 on the light surface. */
 .rows {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 11px;
 }
 
 .row .row-head {
@@ -421,115 +935,343 @@ body {
 .row .fill {
   height: 100%;
   border-radius: 3px;
+  transition: width 500ms cubic-bezier(0.2, 0.9, 0.2, 1);
 }
 
-.chart {
-  position: relative;
-}
+/* ---- Ceiling pane ------------------------------------------------------ */
 
-.bars-frame {
-  display: flex;
-  gap: 10px;
-}
-
-.bars-axis {
+.ceiling-pane {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  height: 150px;
-  font-size: 11px;
+  gap: 4px;
+}
+
+.events {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.events li {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+  align-items: baseline;
+}
+
+.event-when {
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
-  text-align: right;
   flex: none;
 }
 
-/* 2px of surface between adjacent bars; 4px rounded data-end on top, square
-   where the bar meets the baseline. */
-.bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 150px;
-  flex: 1;
-  border-bottom: 1px solid var(--baseline);
+.event-text {
+  color: var(--text-secondary);
 }
 
-.bar-col {
-  flex: 1;
-  height: 100%;
-  display: flex;
-  align-items: flex-end;
-  min-width: 3px;
-  cursor: default;
-}
-
-.bar-fill {
-  width: 100%;
-  background: var(--series-1);
-  border-radius: 4px 4px 0 0;
-}
-
-.bar-col:hover .bar-fill {
-  opacity: 0.75;
-}
-
-.bars-labels {
-  display: flex;
-  gap: 2px;
-  margin-top: 6px;
-  padding-left: 52px;
+.caption {
   font-size: 11px;
   color: var(--text-muted);
-}
-
-.bars-labels span {
-  flex: 1;
-  min-width: 3px;
-  text-align: center;
-  white-space: nowrap;
-  overflow: visible;
-}
-
-.bars-labels .peak {
-  color: var(--text-secondary);
-}
-
-.tooltip {
-  position: absolute;
-  pointer-events: none;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
-  white-space: nowrap;
-  z-index: 2;
-}
-
-.tooltip .tip-title {
-  font-weight: 600;
-  margin-bottom: 2px;
-}
-
-.tooltip .tip-row {
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
+  margin: 0 0 12px;
+  max-width: 78ch;
 }
 
 .state {
-  padding: 48px 0;
+  color: var(--text-secondary);
+  padding: 24px 0;
+  margin: 0;
+}
+
+/* ---- Odometer ---------------------------------------------------------- */
+
+.odo {
+  display: inline-flex;
+  align-items: baseline;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.odo-fixed {
+  display: inline-block;
+}
+
+.odo-slot {
+  display: inline-block;
+  height: 1em;
+  width: 0.6em;
+  overflow: hidden;
+}
+
+.odo-reel {
+  display: flex;
+  flex-direction: column;
+  /* Short on purpose: the low digits change every frame while a count is
+     rolling, and a long transition would smear them into a stall. */
+  transition: transform 170ms cubic-bezier(0.3, 0.9, 0.4, 1);
+}
+
+.odo-reel > span {
+  height: 1em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---- Motion ------------------------------------------------------------ */
+
+.floaters {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  margin-left: 12px;
+  pointer-events: none;
+}
+
+.floater {
+  position: absolute;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--series-3);
+  animation: float-up 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes float-up {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-38px);
+  }
+}
+
+@keyframes punch {
+  0% {
+    transform: scale(1);
+  }
+  32% {
+    transform: scale(1.16);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .odo-reel,
+  .decay-fill,
+  .xp-fill,
+  .meter-fill,
+  .bar-fill,
+  .row .fill {
+    transition: none;
+  }
+  .floater,
+  .board.live .combo-figure,
+  .board.live .growth-head,
+  .signal.live .signal-dot,
+  .signal.generating .signal-dot,
+  .hit-ring,
+  .growth-ping,
+  .beat,
+  .flow-fill,
+  .donut-arc,
+  .record-chip,
+  .level-mini.levelled .xp-fill {
+    animation: none;
+  }
+  .floater {
+    opacity: 1;
+  }
+}
+
+/* ---- Beats -------------------------------------------------------------- */
+
+/* Each turn placed by when it landed, so a pause reads as a gap. */
+.beats {
+  position: relative;
+  flex: 1;
+  min-height: 40px;
+  margin: 10px 0 4px;
+  border-bottom: 1px solid var(--gridline);
+}
+
+.beats.empty {
+  flex: 1;
+  min-height: 40px;
+  margin: 10px 0 4px;
+  border-bottom: 1px solid var(--gridline);
+}
+
+.beat {
+  position: absolute;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px 1px 0 0;
+  background: var(--baseline);
+  transition: height 400ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.board.live .beat {
+  background: var(--series-1);
+}
+
+/* ---- Token flow --------------------------------------------------------- */
+
+.flow {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.flow-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 1;
+  min-height: 0;
+}
+
+.flow-title {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.flow-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+}
+
+.flow-label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--text-secondary);
 }
 
-.footnote {
-  margin-top: 28px;
-  font-size: 12px;
-  color: var(--text-muted);
-  max-width: 68ch;
+.flow-value {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
 }
 
-.warn {
-  color: var(--series-2);
+.flow-track {
+  grid-column: 1 / -1;
+  height: 4px;
+  background: var(--gridline);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.flow-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  transition: width 500ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.limit-card {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Donut -------------------------------------------------------------- */
+
+/* Fills the card rather than floating in the middle of it. */
+.window-split {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 18px;
+  align-items: stretch;
+  margin-top: 14px;
+  flex: 1;
+  min-height: 0;
+}
+
+.donut {
+  position: relative;
+  width: clamp(96px, 11vw, 150px);
+  aspect-ratio: 1;
+  flex: none;
+  align-self: center;
+}
+
+.donut svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.donut-arc {
+  fill: none;
+  stroke-width: 5;
+  transition: stroke-dasharray 600ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    stroke-dashoffset 600ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.donut-centre {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.donut.empty {
+  border-radius: 50%;
+  border: 5px solid var(--gridline);
+  width: clamp(76px, 8vw, 108px);
+}
+
+.window-split .flow {
+  margin-top: 0;
+}
+
+/* The note belongs under the meter, not floating above a gap. */
+.limit-card .score-note {
+  margin-bottom: 0;
+}
+
+/* Generating: the transcript is being written, but nothing billable has
+   landed yet. A state, not a number. */
+.signal.generating {
+  color: var(--series-1);
+  border-color: color-mix(in oklab, var(--series-1) 45%, transparent);
+}
+
+.signal.generating .signal-dot {
+  background: var(--series-1);
+  animation: working 900ms ease-in-out infinite;
+}
+
+@keyframes working {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
 }

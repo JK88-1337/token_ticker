@@ -72,11 +72,74 @@ describe('buildSnapshot', () => {
     expect(snapshot.recent.at(-1)?.at).toBe(many.at(-1)?.timestamp);
   });
 
+  it('reports what the current session window holds', () => {
+    const now = Date.parse('2026-08-21T12:00:00Z');
+    const snapshot = buildSnapshot(
+      [
+        usageRecord({ output: 500 }, { timestamp: '2026-08-21T11:30:00Z' }), // inside 5h
+        usageRecord({ output: 900 }, { timestamp: '2026-08-21T02:00:00Z' }), // long past
+      ],
+      table,
+      'UTC',
+      { now },
+    );
+
+    expect(snapshot.window.totals.tokens.output).toBe(500);
+    expect(snapshot.window.totals.turns).toBe(1);
+  });
+
+  it('measures the ceiling from the window that actually ended in a refusal', () => {
+    // The quota is not in the transcripts. What is, is the moment you were cut
+    // off — so the ceiling is observed rather than declared.
+    const hitAt = '2026-08-21T09:00:00Z';
+    const snapshot = buildSnapshot(
+      [
+        usageRecord({ output: 700 }, { timestamp: '2026-08-21T06:00:00Z' }),
+        usageRecord({ output: 300 }, { timestamp: '2026-08-21T08:59:00Z' }),
+        usageRecord({ output: 999 }, { timestamp: '2026-08-21T10:00:00Z' }), // after the cut
+      ],
+      table,
+      'UTC',
+      { now: Date.parse('2026-08-21T12:00:00Z'), limits: [{ at: hitAt, scope: 'session', notice: 'x' }] },
+    );
+
+    expect(snapshot.observedCeiling).toBe(1000);
+    expect(snapshot.limitHits).toHaveLength(1);
+  });
+
+  it('has no ceiling to report before a limit has ever been hit', () => {
+    const snapshot = buildSnapshot([usageRecord({ output: 5 })], table, 'UTC');
+
+    expect(snapshot.observedCeiling).toBeNull();
+    expect(snapshot.limitHits).toEqual([]);
+  });
+
   it('records the zone the days were bucketed in', () => {
     const snapshot = buildSnapshot([], table, 'Asia/Shanghai');
 
     expect(snapshot.timeZone).toBe('Asia/Shanghai');
     expect(snapshot.totals.turns).toBe(0);
     expect(snapshot.byDay).toEqual([]);
+  });
+});
+
+describe('buildSnapshot combo record', () => {
+  it('reports the longest run of turns ever recorded', () => {
+    const at = (seconds: number) =>
+      new Date(Date.parse('2026-08-21T00:00:00Z') + seconds * 1000).toISOString();
+
+    const snapshot = buildSnapshot(
+      [
+        usageRecord({}, { timestamp: at(0) }),
+        usageRecord({}, { timestamp: at(60) }),
+        usageRecord({}, { timestamp: at(120) }),
+        // A long pause breaks the run.
+        usageRecord({}, { timestamp: at(9000) }),
+      ],
+      table,
+      'UTC',
+    );
+
+    expect(snapshot.bestCombo).toBe(3);
   });
 });

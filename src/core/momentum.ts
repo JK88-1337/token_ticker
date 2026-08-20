@@ -36,9 +36,44 @@ export function comboLength(timestamps: readonly string[], now: number, gapMs: n
 export interface SpendEvent {
   at: string;
   usd: number;
+  /** Every token class added together. */
+  tokens: number;
+  /** Tokens excluding cache reads — the measure the allowance gauge uses. */
+  work: number;
 }
 
 const HOUR_MS = 60 * 60 * 1000;
+
+/** Adds up one field of the turns inside a trailing window. */
+function overWindow(
+  events: readonly SpendEvent[],
+  now: number,
+  windowMs: number,
+  pick: (event: SpendEvent) => number,
+): number {
+  const since = now - windowMs;
+  let total = 0;
+  for (const event of events) {
+    const at = Date.parse(event.at);
+    if (Number.isFinite(at) && at >= since && at <= now) total += pick(event);
+  }
+  return total;
+}
+
+/**
+ * Tokens per second over the trailing window.
+ *
+ * The window slides whether or not anything new arrives, so this rises the
+ * moment a turn lands and drifts back down on its own while you read it.
+ */
+export function tokenRatePerSecond(
+  events: readonly SpendEvent[],
+  now: number,
+  windowMs: number,
+): number {
+  if (windowMs <= 0) return 0;
+  return (overWindow(events, now, windowMs, (event) => event.tokens) * 1000) / windowMs;
+}
 
 /**
  * What the last `windowMs` would come to if it kept up for an hour.
@@ -54,14 +89,94 @@ export function burnRatePerHour(
 ): number {
   if (windowMs <= 0) return 0;
 
-  const since = now - windowMs;
-  let spent = 0;
-  for (const event of events) {
-    const at = Date.parse(event.at);
-    if (Number.isFinite(at) && at >= since && at <= now) spent += event.usd;
+  const spent = overWindow(events, now, windowMs, (event) => event.usd);
+  return spent === 0 ? 0 : (spent * HOUR_MS) / windowMs;
+}
+
+/** A pause longer than this ends a run of turns. */
+export const COMBO_GAP_MS = 120_000;
+
+/** A name for a run, once it is long enough to be worth naming. */
+export interface ComboTier {
+  rank: number;
+  name: string;
+}
+
+/** The ladder, lowest first. Exported so a view can show what is next. */
+export const COMBO_TIERS: readonly (ComboTier & { from: number })[] = [
+  { from: 2, rank: 1, name: 'WARMING UP' },
+  { from: 5, rank: 2, name: 'ROLLING' },
+  { from: 10, rank: 3, name: 'ON FIRE' },
+  { from: 25, rank: 4, name: 'RELENTLESS' },
+  { from: 50, rank: 5, name: 'UNSTOPPABLE' },
+];
+
+/** What to call the current run, or nothing if it is too short to brag about. */
+export function comboTier(combo: number): ComboTier | null {
+  let found: ComboTier | null = null;
+  for (const tier of COMBO_TIERS) {
+    if (combo >= tier.from) found = { rank: tier.rank, name: tier.name };
+  }
+  return found;
+}
+
+/**
+ * The longest unbroken run anywhere in the history.
+ *
+ * The record a live combo is measured against. Unlike {@link comboLength} this
+ * ignores how long ago it happened — it is a personal best, not a live state.
+ */
+export function longestCombo(timestamps: readonly string[], gapMs: number): number {
+  const times = timestamps
+    .map((stamp) => Date.parse(stamp))
+    .filter((time) => Number.isFinite(time))
+    .sort((a, b) => a - b);
+
+  let best = 0;
+  let run = 0;
+  let previous: number | undefined;
+
+  for (const time of times) {
+    run = previous !== undefined && time - previous <= gapMs ? run + 1 : 1;
+    if (run > best) best = run;
+    previous = time;
   }
 
-  return spent === 0 ? 0 : (spent * HOUR_MS) / windowMs;
+  return best;
+}
+
+/** The first level costs this many tokens; each one after costs more. */
+const LEVEL_BASE = 1_000_000;
+const LEVEL_GROWTH = 1.6;
+
+export interface Level {
+  level: number;
+  /** Tokens earned into the current level. */
+  into: number;
+  /** Tokens the current level spans end to end. */
+  span: number;
+}
+
+/**
+ * The level a lifetime token count has reached.
+ *
+ * Thresholds grow geometrically, so the hundreds of millions real use reaches
+ * land in the low teens rather than running off the end of a table — early
+ * levels come quickly and later ones stay worth chasing.
+ */
+export function levelFor(tokens: number): Level {
+  const total = Math.max(0, tokens);
+
+  let level = 1;
+  let lower = 0;
+  let upper = LEVEL_BASE;
+  while (total >= upper) {
+    level++;
+    lower = upper;
+    upper = LEVEL_BASE * Math.pow(LEVEL_GROWTH, level - 1);
+  }
+
+  return { level, into: total - lower, span: upper - lower };
 }
 
 /** The day before `key`, both as `YYYY-MM-DD`. */

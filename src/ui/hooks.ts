@@ -4,10 +4,21 @@ import { useEffect, useRef, useState } from 'react';
  * Eases a number toward its target instead of snapping to it.
  *
  * The value shown is always a point on the way to a real figure, never an
- * invented one — the animation only decides how fast the gap closes. That is
- * what turns an arriving batch of turns into a visible roll.
+ * invented one — the animation only decides how fast the gap closes, and it
+ * closes from below, so the count on screen is never ahead of what actually
+ * happened.
+ *
+ * The travel is deliberately longer than the gap between arrivals (measured
+ * at about six seconds on a working session), so the digits are still moving
+ * when the next figure lands and the count is never sitting idle. The cost is
+ * a small standing lag while work is heavy, which resolves the moment it
+ * stops — and lagging is the safe direction.
+ *
+ * The curve is close to linear rather than an ease-out. An ease-out spends
+ * most of its time barely moving at the end, which is exactly the stall this
+ * is meant to avoid.
  */
-export function useAnimatedValue(target: number, durationMs = 700): number {
+export function useAnimatedValue(target: number, durationMs = 15_000): number {
   const [display, setDisplay] = useState(target);
   const displayRef = useRef(target);
   displayRef.current = display;
@@ -22,7 +33,8 @@ export function useAnimatedValue(target: number, durationMs = 700): number {
 
     const step = (at: number) => {
       const progress = Math.min((at - startedAt) / durationMs, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
+      // Near-linear: a gentle finish, no long tail.
+      const eased = 1 - Math.pow(1 - progress, 1.6);
       setDisplay(from + distance * eased);
       if (progress < 1) frame = requestAnimationFrame(step);
     };

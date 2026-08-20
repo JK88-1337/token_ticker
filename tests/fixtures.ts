@@ -17,6 +17,7 @@ interface LineOverrides {
   cacheRead?: number;
   cacheWrite5m?: number;
   cacheWrite1h?: number;
+  thinking?: number;
   iterations?: unknown;
   speed?: string | null;
   serviceTier?: string | null;
@@ -52,6 +53,7 @@ export function assistantLine(o: LineOverrides = {}): string {
       usage: {
         input_tokens: o.input ?? 0,
         output_tokens: o.output ?? 0,
+        output_tokens_details: { thinking_tokens: o.thinking ?? 0 },
         cache_read_input_tokens: o.cacheRead ?? 0,
         cache_creation_input_tokens: cacheWrite5m + cacheWrite1h,
         cache_creation: {
@@ -101,9 +103,32 @@ export function usageRecord(
     isSidechain: false,
     speed: 'standard',
     serviceTier: 'standard',
-    tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, ...tokens },
+    tokens: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite5m: 0,
+      cacheWrite1h: 0,
+      thinking: 0,
+      ...tokens,
+    },
     ...rest,
   };
+}
+
+/**
+ * An assistant line reporting an API failure — how Claude Code records a 429
+ * or an expired token. The usage block is present but zeroed.
+ */
+export function apiErrorLine(o: { status?: number; error?: string; text?: string; timestamp?: string } = {}): string {
+  const line = JSON.parse(assistantLine({ timestamp: o.timestamp })) as Record<string, any>;
+  line['isApiErrorMessage'] = true;
+  line['apiErrorStatus'] = o.status ?? 429;
+  line['error'] = o.error ?? 'rate_limit';
+  line['message'].content = [
+    { type: 'text', text: o.text ?? "You've hit your session limit · resets 10:30pm (Australia/Sydney)" },
+  ];
+  return JSON.stringify(line);
 }
 
 /** A user line — no `usage`, must never be billed. */

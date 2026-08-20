@@ -15,7 +15,7 @@ export interface UsageTotals {
 }
 
 function emptyTokens(): TokenCounts {
-  return { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 };
+  return { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, thinking: 0 };
 }
 
 /** Rolls a set of records into one figure per token class, plus cost. */
@@ -38,6 +38,7 @@ export function totalUsage(
     tokens.cacheRead += record.tokens.cacheRead;
     tokens.cacheWrite5m += record.tokens.cacheWrite5m;
     tokens.cacheWrite1h += record.tokens.cacheWrite1h;
+    tokens.thinking += record.tokens.thinking;
   }
 
   return { turns, tokens, usd, unpricedTurns };

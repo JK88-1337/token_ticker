@@ -44,6 +44,7 @@ describe('totalUsage', () => {
       cacheRead: 0,
       cacheWrite5m: 0,
       cacheWrite1h: 0,
+      thinking: 0,
     });
   });
 });

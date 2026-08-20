@@ -1,4 +1,5 @@
 import { dedupeRecords } from '../core/ledger.js';
+import type { LimitEvent } from '../core/limits.js';
 import type { PricingTable } from '../core/pricing.js';
 import type { UsageRecord } from '../core/records.js';
 import { buildSnapshot, type UsageSnapshot } from '../core/snapshot.js';
@@ -15,20 +16,36 @@ import { scanTranscripts, type ScanCursors } from './transcripts.js';
 export class UsageStore {
   #cursors: ScanCursors = {};
   #records: UsageRecord[] = [];
+  #limits = new Map<string, LimitEvent>();
 
   constructor(private readonly root: string) {}
 
-  /** Reads whatever has been written since the last refresh. */
-  async refresh(): Promise<void> {
+  /**
+   * Reads whatever has been written since the last refresh.
+   *
+   * Returns whether anything actually arrived, so a caller pushing updates can
+   * stay quiet when nothing changed.
+   */
+  async refresh(): Promise<boolean> {
     const scan = await scanTranscripts(this.root, this.#cursors);
     this.#cursors = scan.cursors;
+
+    const before = this.#records.length;
     if (scan.records.length > 0) {
       this.#records = dedupeRecords([...this.#records, ...scan.records]);
     }
+
+    const limitsBefore = this.#limits.size;
+    for (const limit of scan.limits) {
+      // A resumed session copies a refusal into the new transcript too.
+      this.#limits.set(`${limit.at}|${limit.notice}`, limit);
+    }
+
+    return this.#records.length !== before || this.#limits.size !== limitsBefore;
   }
 
   /** Everything the dashboard draws, as of the last refresh. */
   snapshot(table: PricingTable, timeZone: string): UsageSnapshot {
-    return buildSnapshot(this.#records, table, timeZone);
+    return buildSnapshot(this.#records, table, timeZone, { limits: [...this.#limits.values()] });
   }
 }

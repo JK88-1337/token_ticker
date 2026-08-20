@@ -1,6 +1,7 @@
 import { open, readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { parseLimitEvent, type LimitEvent } from '../core/limits.js';
 import { parseTranscriptLine, type UsageRecord } from '../core/records.js';
 
 /** Where Claude Code keeps transcripts for the current user. */
@@ -46,6 +47,8 @@ export async function findTranscripts(root: string): Promise<string[]> {
 /** What one incremental read yielded, and where to resume next time. */
 export interface TranscriptRead {
   records: UsageRecord[];
+  /** Moments the API refused a turn because an allowance ran out. */
+  limits: LimitEvent[];
   offset: number;
 }
 
@@ -63,11 +66,11 @@ export async function readTranscriptFrom(path: string, offset: number): Promise<
   try {
     size = (await stat(path)).size;
   } catch {
-    return { records: [], offset: 0 }; // Deleted between listing and reading.
+    return { records: [], limits: [], offset: 0 }; // Deleted between listing and reading.
   }
 
   const from = size < offset ? 0 : offset;
-  if (size === from) return { records: [], offset: from };
+  if (size === from) return { records: [], limits: [], offset: from };
 
   const handle = await open(path, 'r');
   let chunk: Buffer;
@@ -80,17 +83,24 @@ export async function readTranscriptFrom(path: string, offset: number): Promise<
 
   const text = chunk.toString('utf8');
   const lastBreak = text.lastIndexOf('\n');
-  if (lastBreak === -1) return { records: [], offset: from };
+  if (lastBreak === -1) return { records: [], limits: [], offset: from };
 
   const complete = text.slice(0, lastBreak);
   const records: UsageRecord[] = [];
+  const limits: LimitEvent[] = [];
   for (const line of complete.split('\n')) {
     if (!line.trim()) continue;
     const record = parseTranscriptLine(line);
-    if (record) records.push(record);
+    if (record) {
+      records.push(record);
+      continue;
+    }
+    // A line that is not a billable turn may still be a refusal worth keeping.
+    const limit = parseLimitEvent(line);
+    if (limit) limits.push(limit);
   }
 
-  return { records, offset: from + Buffer.byteLength(complete) + 1 };
+  return { records, limits, offset: from + Buffer.byteLength(complete) + 1 };
 }
 
 /** How far each transcript has been read, keyed by path. */
@@ -99,6 +109,8 @@ export type ScanCursors = Record<string, number>;
 export interface TranscriptScan {
   /** Only the records written since the cursors were taken. */
   records: UsageRecord[];
+  /** Limit refusals seen since the cursors were taken. */
+  limits: LimitEvent[];
   /** Cursors to hand back on the next scan. */
   cursors: ScanCursors;
 }
@@ -123,11 +135,13 @@ export async function scanTranscripts(root: string, cursors: ScanCursors = {}): 
   );
 
   const records: UsageRecord[] = [];
+  const limits: LimitEvent[] = [];
   const next: ScanCursors = {};
   for (const { path, read } of reads) {
     records.push(...read.records);
+    limits.push(...read.limits);
     next[path] = read.offset;
   }
 
-  return { records, cursors: next };
+  return { records, limits, cursors: next };
 }

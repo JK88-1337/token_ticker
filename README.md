@@ -24,6 +24,24 @@ So:
 - Nothing leaves your machine unless you explicitly opt in to a feature that
   says it will, and such features only ever transmit aggregate numbers.
 
+## About the ceiling
+
+The allowance itself is not in the transcripts and is not cached anywhere on
+disk — Claude Code asks its server for it. `token_ticker` does not go looking
+for it: it never reads your credentials and never calls an undocumented
+endpoint.
+
+What the transcripts *do* record is the moment a turn was refused. So the
+ceiling here is measured, not declared: the session gauge compares the current
+five-hour window against what the window held when you were actually cut off.
+Before that has ever happened it falls back to your own busiest window, and
+says so.
+
+Token counts for the gauge exclude cache reads. They run to hundreds of
+millions against a few hundred thousand of everything else, and they are the
+cheapest thing billed, so including them would make the reading swing with
+context size rather than with effort.
+
 ## About the cost figures
 
 If you are on a Claude Pro or Max subscription, the dollar amounts shown are the
