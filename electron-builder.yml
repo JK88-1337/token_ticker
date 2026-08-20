@@ -1,0 +1,47 @@
+appId: com.github.jk88-1337.token-ticker
+productName: token_ticker
+copyright: token_ticker contributors
+
+directories:
+  output: release
+  buildResources: build
+
+# Only the two built bundles ship. Source, tests and node_modules stay out —
+# the app has no runtime dependencies beyond Electron itself.
+files:
+  - dist/**
+  - dist-electron/**
+  - package.json
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+
+# Both Windows targets emit an .exe, so each needs its own name or the second
+# one silently overwrites the first.
+nsis:
+  artifactName: ${productName}-${version}-setup-${arch}.${ext}
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+
+portable:
+  artifactName: ${productName}-${version}-portable-${arch}.${ext}
+
+mac:
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  category: public.app-category.developer-tools
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  category: Development
+
+publish: null
