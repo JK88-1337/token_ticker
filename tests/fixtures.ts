@@ -6,6 +6,9 @@
  * source code, and absolute paths, none of which belong in a public repo.
  */
 
+import type { PricingTable } from '../src/core/pricing.js';
+import type { TokenCounts, UsageRecord } from '../src/core/records.js';
+
 interface LineOverrides {
   requestId?: string | null;
   model?: string;
@@ -63,6 +66,44 @@ export function assistantLine(o: LineOverrides = {}): string {
   };
   if (o.requestId === null) delete line['requestId'];
   return JSON.stringify(line);
+}
+
+/**
+ * A pricing table with round numbers, so arithmetic under test is obvious and
+ * assertions do not move every time a real price does.
+ */
+export const testPricingTable: PricingTable = {
+  cacheMultipliers: { read: 0.1, write5m: 1.25, write1h: 2 },
+  batchMultiplier: 0.5,
+  models: {
+    'test-model': { input: 10, output: 50, fast: { input: 20, output: 100 } },
+    'no-fast-model': { input: 10, output: 50 },
+    'intro-model': {
+      input: 10,
+      output: 50,
+      introductory: { untilExclusive: '2026-09-01T00:00:00Z', input: 2, output: 10 },
+    },
+  },
+};
+
+/** A already-parsed record, for tests that operate on records rather than lines. */
+export function usageRecord(
+  tokens: Partial<TokenCounts> = {},
+  rest: Partial<UsageRecord> = {},
+): UsageRecord {
+  return {
+    requestId: 'req_1',
+    timestamp: '2026-07-15T10:24:37.187Z',
+    model: 'test-model',
+    sessionId: 'session-1',
+    projectPath: 'C:\\projects\\demo',
+    gitBranch: 'main',
+    isSidechain: false,
+    speed: 'standard',
+    serviceTier: 'standard',
+    tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, ...tokens },
+    ...rest,
+  };
 }
 
 /** A user line — no `usage`, must never be billed. */

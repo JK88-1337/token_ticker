@@ -1,42 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { priceRecord, type PricingTable } from '../src/core/pricing.js';
-import type { TokenCounts, UsageRecord } from '../src/core/records.js';
-
-/**
- * A table with round numbers, so the arithmetic under test is obvious and the
- * assertions do not have to change every time a real price does.
- */
-const table: PricingTable = {
-  cacheMultipliers: { read: 0.1, write5m: 1.25, write1h: 2 },
-  batchMultiplier: 0.5,
-  models: {
-    'test-model': { input: 10, output: 50, fast: { input: 20, output: 100 } },
-    'no-fast-model': { input: 10, output: 50 },
-    'intro-model': {
-      input: 10,
-      output: 50,
-      introductory: { untilExclusive: '2026-09-01T00:00:00Z', input: 2, output: 10 },
-    },
-  },
-};
+import { priceRecord } from '../src/core/pricing.js';
+import { testPricingTable as table, usageRecord as record } from './fixtures.js';
 
 const MILLION = 1_000_000;
-
-function record(tokens: Partial<TokenCounts>, rest: Partial<UsageRecord> = {}): UsageRecord {
-  return {
-    requestId: 'req_1',
-    timestamp: '2026-07-15T10:24:37.187Z',
-    model: 'test-model',
-    sessionId: 'session-1',
-    projectPath: 'C:\\projects\\demo',
-    gitBranch: 'main',
-    isSidechain: false,
-    speed: 'standard',
-    serviceTier: 'standard',
-    tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, ...tokens },
-    ...rest,
-  };
-}
 
 describe('priceRecord', () => {
   it('charges input and output at the model rate', () => {
