@@ -4,10 +4,15 @@ import { useEffect, useRef, useState } from 'react';
  * Eases a number toward its target instead of snapping to it.
  *
  * The value shown is always a point on the way to a real figure, never an
- * invented one — the animation only decides how fast the gap closes. That is
- * what turns an arriving batch of turns into a visible roll.
+ * invented one — the animation only decides how fast the gap closes, and it
+ * closes from below, so the count on screen is never ahead of what actually
+ * happened.
+ *
+ * The default travel time is close to the median gap between arrivals
+ * (measured at about six seconds, a quarter of them under three), which keeps
+ * the digits usually still moving when the next figure lands.
  */
-export function useAnimatedValue(target: number, durationMs = 700): number {
+export function useAnimatedValue(target: number, durationMs = 2400): number {
   const [display, setDisplay] = useState(target);
   const displayRef = useRef(target);
   displayRef.current = display;

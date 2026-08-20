@@ -49,6 +49,9 @@ export function App() {
   const [snapshot, setSnapshot] = useState<UsageSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('models');
+  // When the transcript was last written without anything billable landing —
+  // a turn mid-generation. Evidence of work, not a token count.
+  const [activityAt, setActivityAt] = useState(0);
 
   useEffect(() => {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -63,6 +66,10 @@ export function App() {
       setSnapshot(JSON.parse(event.data) as UsageSnapshot);
       setError(null);
     };
+
+    source.addEventListener('activity', () => {
+      if (!cancelled) setActivityAt(Date.now());
+    });
 
     // EventSource reconnects on its own, so this only matters before the first
     // snapshot ever arrives.
@@ -91,10 +98,17 @@ export function App() {
 
   const { totals, byDay, byModel, byProject, timeZone, limitHits } = snapshot;
 
-  // "Live" means a turn landed recently enough to still be part of a run —
-  // the same two minutes the combo uses, so the two never disagree.
+  // Three states, each earned. Generating means the transcript is being
+  // written right now with nothing billable in it yet — the gap between a
+  // request going out and its usage block landing. Live means a turn actually
+  // landed inside the same two minutes the combo uses, so the two can never
+  // disagree.
   const lastAt = snapshot.recent.at(-1)?.at;
-  const live = lastAt ? Date.now() - Date.parse(lastAt) < COMBO_GAP_MS : false;
+  const sinceUsage = lastAt ? Date.now() - Date.parse(lastAt) : Number.POSITIVE_INFINITY;
+  const sinceActivity = activityAt ? Date.now() - activityAt : Number.POSITIVE_INFINITY;
+  const generating = sinceActivity < 12_000 && sinceActivity < sinceUsage;
+  const live = sinceUsage < COMBO_GAP_MS;
+  const signal = generating ? 'generating' : live ? 'live' : 'idle';
 
   const tabs: { id: Tab; label: string; hint: string }[] = [
     { id: 'days', label: 'Days', hint: `${byDay.length}` },
@@ -111,9 +125,9 @@ export function App() {
           <span className="wordmark-b">_ticker</span>
         </span>
 
-        <span className={live ? 'signal on' : 'signal'}>
+        <span className={`signal ${signal}`}>
           <span className="signal-dot" />
-          {live ? 'live' : 'idle'}
+          {signal}
         </span>
 
         <span className="hud-bar-spacer" />

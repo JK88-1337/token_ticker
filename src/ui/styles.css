@@ -161,12 +161,12 @@ body {
   background: var(--baseline);
 }
 
-.signal.on {
+.signal.live {
   color: var(--status-good);
   border-color: color-mix(in oklab, var(--status-good) 45%, transparent);
 }
 
-.signal.on .signal-dot {
+.signal.live .signal-dot {
   background: var(--status-good);
   animation: blink 1.8s ease-in-out infinite;
 }
@@ -1075,7 +1075,8 @@ body {
   .floater,
   .board.live .combo-figure,
   .board.live .growth-head,
-  .signal.on .signal-dot,
+  .signal.live .signal-dot,
+  .signal.generating .signal-dot,
   .hit-ring,
   .growth-ping,
   .beat,
@@ -1247,4 +1248,28 @@ body {
 /* The note belongs under the meter, not floating above a gap. */
 .limit-card .score-note {
   margin-bottom: 0;
+}
+
+/* Generating: the transcript is being written, but nothing billable has
+   landed yet. A state, not a number. */
+.signal.generating {
+  color: var(--series-1);
+  border-color: color-mix(in oklab, var(--series-1) 45%, transparent);
+}
+
+.signal.generating .signal-dot {
+  background: var(--series-1);
+  animation: working 900ms ease-in-out infinite;
+}
+
+@keyframes working {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
 }

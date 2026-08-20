@@ -49,7 +49,19 @@ function usageApi(): Plugin {
   async function broadcast(force = false): Promise<void> {
     if (clients.size === 0) return;
     const changed = await refresh();
-    if (!changed && !force) return;
+
+    if (!changed && !force) {
+      // The transcript was written but carried nothing billable — a tool
+      // result, a user line, a turn still being generated. Worth saying so:
+      // it is evidence of work, and it is not a token count.
+      const beat = `event: activity
+data: {"at":${Date.now()}}
+
+`;
+      for (const client of clients) client.res.write(beat);
+      return;
+    }
+
     for (const client of clients) send(client);
   }
 
