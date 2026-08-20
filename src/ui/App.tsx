@@ -3,6 +3,7 @@ import type { UsageSnapshot } from '../core/snapshot.js';
 import type { UsageBucket } from '../core/summary.js';
 import { Breakdown, DailyBars, type BreakdownItem } from './charts.js';
 import { compact, count, dayKeyBefore, projectName, todayKey, usd } from './format.js';
+import { Momentum } from './Momentum.js';
 
 /** How many active days the trend shows. */
 const TREND_DAYS = 30;
@@ -69,7 +70,9 @@ export function App() {
     }
 
     void load();
-    const timer = setInterval(() => void load(), 10_000);
+    // Second-by-second, so a turn lands on screen while it still feels live.
+    // Each poll is an incremental scan that reads only what was appended.
+    const timer = setInterval(() => void load(), 1_000);
     return () => {
       cancelled = true;
       clearInterval(timer);
@@ -118,8 +121,9 @@ export function App() {
         the compute would have cost, not what you were billed.
       </p>
 
+      <Momentum snapshot={snapshot} />
+
       <div className="tiles">
-        <Tile label="All time" value={usd(totals.usd)} note={`${count(totals.turns)} turns`} />
         <Tile label="Today" value={usd(today?.totals.usd ?? 0)} note={`${count(today?.totals.turns ?? 0)} turns`} />
         <Tile label="Last 7 days" value={usd(weekUsd)} />
         <Tile

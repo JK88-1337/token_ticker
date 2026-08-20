@@ -43,6 +43,35 @@ describe('buildSnapshot', () => {
     expect(snapshot.byProject.map((b) => b.key)).toEqual(['dear', 'cheap']);
   });
 
+  it('carries the recent turns the live view plays back, oldest first', () => {
+    const snapshot = buildSnapshot(
+      [
+        usageRecord({ output: 10 }, { timestamp: '2026-08-21T09:00:00Z' }),
+        usageRecord({ output: 10 }, { timestamp: '2026-08-21T08:00:00Z' }),
+      ],
+      table,
+      'UTC',
+    );
+
+    expect(snapshot.recent.map((event) => event.at)).toEqual([
+      '2026-08-21T08:00:00Z',
+      '2026-08-21T09:00:00Z',
+    ]);
+    expect(snapshot.recent[0]?.usd).toBeGreaterThan(0);
+  });
+
+  it('caps the recent turns so the payload stays bounded', () => {
+    const many = Array.from({ length: 900 }, (_, i) =>
+      usageRecord({ output: 1 }, { timestamp: new Date(Date.UTC(2026, 7, 21, 0, i)).toISOString() }),
+    );
+
+    const snapshot = buildSnapshot(many, table, 'UTC');
+
+    expect(snapshot.recent).toHaveLength(500);
+    // The cap keeps the newest, never the oldest.
+    expect(snapshot.recent.at(-1)?.at).toBe(many.at(-1)?.timestamp);
+  });
+
   it('records the zone the days were bucketed in', () => {
     const snapshot = buildSnapshot([], table, 'Asia/Shanghai');
 
