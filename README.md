@@ -6,7 +6,8 @@ A local-first dashboard for your Claude Code token consumption — part monitor,
 
 ## Status
 
-Early development. Nothing is usable yet.
+Early development. The dashboard runs locally with `npm run dev`; it is not yet
+packaged as a desktop app.
 
 ## What it does
 
@@ -36,6 +37,7 @@ Requires Node 20 or newer.
 
 ```bash
 npm install
+npm run dev          # the dashboard, at http://localhost:5273
 
 npm run test:watch   # the loop you keep open while writing code
 npm test             # run the suite once
