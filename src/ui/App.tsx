@@ -3,11 +3,11 @@ import { workTokens } from '../core/limits.js';
 import type { UsageSnapshot } from '../core/snapshot.js';
 import type { UsageBucket } from '../core/summary.js';
 import { Breakdown, DailyBars, type BreakdownItem } from './charts.js';
-import { compact, count, projectName, shortDay, todayKey, usd } from './format.js';
+import { compact, count, projectName, shortDay, usd } from './format.js';
 import { Scoreboard } from './Scoreboard.js';
 
 /** How many active days the trend shows. */
-const TREND_DAYS = 30;
+const TREND_DAYS = 45;
 
 /**
  * Categorical slots, in the fixed order the palette validates in.
@@ -27,6 +27,8 @@ const SERIES = [
   'var(--series-8)',
 ];
 
+type Tab = 'days' | 'models' | 'projects' | 'ceiling';
+
 function toItems(
   buckets: UsageBucket[],
   colour: (key: string) => string,
@@ -42,30 +44,10 @@ function toItems(
   }));
 }
 
-/** A collapsed section — the detail is there when wanted, not before. */
-function Drawer({
-  title,
-  hint,
-  children,
-}: {
-  title: string;
-  hint: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <details className="drawer">
-      <summary>
-        <span className="drawer-title">{title}</span>
-        <span className="drawer-hint">{hint}</span>
-      </summary>
-      <div className="drawer-body">{children}</div>
-    </details>
-  );
-}
-
 export function App() {
   const [snapshot, setSnapshot] = useState<UsageSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('days');
 
   useEffect(() => {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -100,81 +82,91 @@ export function App() {
 
   if (!snapshot) {
     return (
-      <div className="app">
+      <div className="hud">
         <p className="state">{error ?? 'Reading transcripts…'}</p>
       </div>
     );
   }
 
   const { totals, byDay, byModel, byProject, timeZone, limitHits } = snapshot;
-  const today = byDay.find((bucket) => bucket.key === todayKey(timeZone));
+
+  const tabs: { id: Tab; label: string; hint: string }[] = [
+    { id: 'days', label: 'Days', hint: `${byDay.length}` },
+    { id: 'models', label: 'Models', hint: `${byModel.length}` },
+    { id: 'projects', label: 'Projects', hint: `${byProject.length}` },
+    { id: 'ceiling', label: 'Ceiling', hint: `${limitHits.length}` },
+  ];
 
   return (
-    <div className="app">
-      <header className="masthead">
-        <h1>token_ticker</h1>
-        <span className="tag">unofficial · {timeZone}</span>
+    <div className="hud">
+      <header className="hud-bar">
+        <span className="brand">token_ticker</span>
+        <span className="brand-tag">unofficial</span>
+        <span className="hud-bar-spacer" />
+        {totals.unpricedTurns > 0 ? (
+          <span className="hud-warn">{count(totals.unpricedTurns)} turns unpriced</span>
+        ) : null}
+        <span className="hud-zone">{timeZone}</span>
       </header>
 
       <Scoreboard snapshot={snapshot} />
 
-      {totals.unpricedTurns > 0 ? (
-        <p className="footnote warn">
-          {count(totals.unpricedTurns)} turns ran on a model with no rate in the pricing table, so
-          the equivalent value is a floor rather than a total.
-        </p>
-      ) : null}
+      <section className="detail">
+        <nav className="tabs" role="tablist">
+          {tabs.map((entry) => (
+            <button
+              key={entry.id}
+              role="tab"
+              aria-selected={tab === entry.id}
+              className={tab === entry.id ? 'tab on' : 'tab'}
+              onClick={() => setTab(entry.id)}
+            >
+              {entry.label}
+              <span className="tab-hint">{entry.hint}</span>
+            </button>
+          ))}
+        </nav>
 
-      <Drawer
-        title="Spend per day"
-        hint={`today ${usd(today?.totals.usd ?? 0)} · ${byDay.length} active days`}
-      >
-        <p className="caption">
-          Last {TREND_DAYS} days with activity, oldest first. Days with no usage are not shown.
-        </p>
-        <DailyBars buckets={byDay.slice(-TREND_DAYS)} />
-      </Drawer>
+        <div className="detail-body">
+          {tab === 'days' ? <DailyBars buckets={byDay.slice(-TREND_DAYS)} /> : null}
 
-      <Drawer title="By model" hint={`${byModel.length} models`}>
-        <Breakdown items={toItems(byModel, modelColour)} />
-      </Drawer>
+          {tab === 'models' ? <Breakdown items={toItems(byModel, modelColour)} /> : null}
 
-      <Drawer title="By project" hint={`${byProject.length} projects`}>
-        <Breakdown items={toItems(byProject, () => 'var(--series-1)', projectName)} />
-      </Drawer>
+          {tab === 'projects' ? (
+            <Breakdown items={toItems(byProject, () => 'var(--series-1)', projectName)} />
+          ) : null}
 
-      <Drawer
-        title="Ceiling evidence"
-        hint={limitHits.length > 0 ? `${limitHits.length} refusals on record` : 'never cut off'}
-      >
-        <p className="caption">
-          The allowance itself is not in the transcripts and is not cached on disk, so nothing here
-          is a quota lookup. What is recorded is the moment a turn was refused — and what the
-          window held when it happened.
-        </p>
-        {limitHits.length > 0 ? (
-          <ul className="events">
-            {limitHits.map((hit) => (
-              <li key={hit.at}>
-                <span className="event-when">{shortDay(hit.at.slice(0, 10))}</span>
-                <span className="event-text">{hit.notice}</span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="state">
-            No refusal on record. The session gauge compares against your busiest window instead —{' '}
-            {compact(workTokens(snapshot.peak.totals.tokens))} tokens.
-          </p>
-        )}
-      </Drawer>
-
-      <p className="footnote">
-        Read from your local transcripts; nothing leaves this machine. Token counts exclude cache
-        reads where an allowance is concerned — they swamp every other class and are the cheapest
-        thing billed. Rates come from the shipped pricing table; verify them against Anthropic's
-        pricing page before trusting a total.
-      </p>
+          {tab === 'ceiling' ? (
+            <div className="ceiling-pane">
+              <p className="caption">
+                The allowance is not in the transcripts and is not cached on disk, so nothing here
+                is a quota lookup. What is recorded is the moment a turn was refused — and what the
+                window held when it happened.
+              </p>
+              {limitHits.length > 0 ? (
+                <ul className="events">
+                  {limitHits.map((hit) => (
+                    <li key={hit.at}>
+                      <span className="event-when">{shortDay(hit.at.slice(0, 10))}</span>
+                      <span className="event-text">{hit.notice}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="state">
+                  No refusal on record. The session gauge compares against your busiest window
+                  instead — {compact(workTokens(snapshot.peak.totals.tokens))} tokens, on{' '}
+                  {snapshot.peak.endedAt ? shortDay(snapshot.peak.endedAt.slice(0, 10)) : '—'}.
+                </p>
+              )}
+              <p className="caption">
+                Read from local transcripts; nothing leaves this machine. Equivalent value{' '}
+                {usd(totals.usd)} at the shipped rates — verify them before trusting a total.
+              </p>
+            </div>
+          ) : null}
+        </div>
+      </section>
     </div>
   );
 }

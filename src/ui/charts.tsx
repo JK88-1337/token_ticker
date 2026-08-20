@@ -54,7 +54,8 @@ export function DailyBars({ buckets }: { buckets: UsageBucket[] }) {
                 const frame = event.currentTarget.closest('.chart')!.getBoundingClientRect();
                 setHover({
                   x: cell.left - frame.left + cell.width / 2,
-                  y: cell.top - frame.top - 8,
+                  // Bars reaching the top would push the tooltip out of the pane.
+                  y: Math.max(cell.top - frame.top - 8, 2),
                   title: shortDay(bucket.key),
                   rows: [
                     `${usd(bucket.totals.usd)} · ${count(bucket.totals.turns)} turns`,

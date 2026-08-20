@@ -71,7 +71,7 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
   }, [lifetime, previous]);
 
   return (
-    <section className="board">
+    <section className={combo > 1 ? 'board live' : 'board'}>
       <div className="score">
         <div className="score-top">
           <span className="score-label">Tokens burned</span>
