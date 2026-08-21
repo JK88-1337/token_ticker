@@ -1,4 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  ROLL_MS,
+  rollPhase,
+  rollProgress,
+  type RollPhase,
+} from './roll.js';
+
+export type { RollPhase };
 
 /**
  * Eases a number toward its target instead of snapping to it.
@@ -8,42 +16,43 @@ import { useEffect, useRef, useState } from 'react';
  * closes from below, so the count on screen is never ahead of what actually
  * happened.
  *
- * The travel is deliberately longer than the gap between arrivals (measured
- * at about six seconds on a working session), so the digits are still moving
- * when the next figure lands and the count is never sitting idle. The cost is
- * a small standing lag while work is heavy, which resolves the moment it
- * stops — and lagging is the safe direction.
- *
- * The curve is close to linear rather than an ease-out. An ease-out spends
- * most of its time barely moving at the end, which is exactly the stall this
- * is meant to avoid.
+ * The travel is longer than the gap between arrivals (measured at about six
+ * seconds on a working session), so while work is coming in the digits stay
+ * in the climb and never sit idle. Once arrivals stop, a five-second
+ * ease-out brakes the last of the gap so the count settles rather than
+ * hitting the target at climb speed.
  */
-export function useAnimatedValue(target: number, durationMs = 15_000): number {
+export function useAnimatedValue(target: number): { value: number; phase: RollPhase } {
   const [display, setDisplay] = useState(target);
+  const [phase, setPhase] = useState<RollPhase>('idle');
   const displayRef = useRef(target);
   displayRef.current = display;
 
   useEffect(() => {
     const from = displayRef.current;
     const distance = target - from;
-    if (distance === 0) return;
+    if (distance === 0) {
+      setPhase('idle');
+      return;
+    }
 
     const startedAt = performance.now();
     let frame = 0;
 
     const step = (at: number) => {
-      const progress = Math.min((at - startedAt) / durationMs, 1);
-      // Near-linear: a gentle finish, no long tail.
-      const eased = 1 - Math.pow(1 - progress, 1.6);
-      setDisplay(from + distance * eased);
-      if (progress < 1) frame = requestAnimationFrame(step);
+      const elapsed = at - startedAt;
+      setDisplay(from + distance * rollProgress(elapsed));
+      const next = rollPhase(elapsed);
+      setPhase(next);
+      if (elapsed < ROLL_MS) frame = requestAnimationFrame(step);
     };
 
+    setPhase('climb');
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [target, durationMs]);
+  }, [target]);
 
-  return display;
+  return { value: display, phase };
 }
 
 /** A clock that re-renders on an interval, for figures that decay with time. */

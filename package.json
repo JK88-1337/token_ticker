@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "scan": "tsx scripts/scan.ts",
     "dev": "vite",
+    "arcade": "vite --config vite.arcade.config.ts",
     "build": "vite build",
     "preview": "vite preview",
     "build:electron": "node scripts/build-electron.mjs",

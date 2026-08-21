@@ -58,6 +58,7 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
   const todayTokens = today ? totalTokens(today.totals.tokens) : 0;
   const shown = useAnimatedValue(todayTokens);
   const previous = usePrevious(todayTokens);
+  const rolling = shown.phase === 'idle' ? undefined : shown.phase;
 
   // The record to beat is the best day that is not today.
   const bestBefore = snapshot.byDay
@@ -136,7 +137,7 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
         </div>
 
         <div className="score-figure">
-          <Odometer value={full(Math.round(shown))} />
+          <Odometer value={full(Math.round(shown.value))} className={rolling} />
           <div className="floaters">
             {floaters.map((floater) => (
               <span className="floater" key={floater.id}>
@@ -211,7 +212,10 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
           <span className="limit-state">{gauge.label}</span>
         </div>
         <div className="limit-figure">
-          <Odometer value={full(windowShown)} />
+          <Odometer
+            value={full(Math.round(windowShown.value))}
+            className={windowShown.phase === 'idle' ? undefined : windowShown.phase}
+          />
           <span className="limit-of">{ceiling ? `of ${full(ceiling)}` : ''}</span>
         </div>
         <div className="meter">
@@ -259,7 +263,7 @@ export function Scoreboard({ snapshot }: { snapshot: UsageSnapshot }) {
         <div className="mini">
           <span className="mini-label">Lifetime</span>
           <span className="mini-value">
-            <Odometer value={full(lifetimeShown)} />
+            <Odometer value={full(Math.round(lifetimeShown.value))} />
           </span>
         </div>
         <div className="mini">
