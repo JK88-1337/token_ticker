@@ -15,6 +15,8 @@
     "scan": "tsx scripts/scan.ts",
     "dev": "vite",
     "arcade": "vite --config vite.arcade.config.ts",
+    "gauge": "vite --config vite.sheet.config.ts --port 7778 --open /gauge.html",
+    "blocks": "vite --config vite.sheet.config.ts --port 7779 --open /blocks.html",
     "build": "vite build",
     "preview": "vite preview",
     "build:electron": "node scripts/build-electron.mjs",

@@ -1,0 +1,609 @@
+/*
+ * Gauge — Swiss-grid character sheet on a cream ground.
+ *
+ * Deliberately single-theme. This is a light instrument face, the way the
+ * arcade skin is a dark cabinet: every colour is stated outright rather than
+ * inherited, so the page holds regardless of what the host is set to.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Fira+Sans:wght@400;500;600&display=swap');
+
+:root {
+  color-scheme: light;
+  --cream: #fff7ed;
+  --card: #ffffff;
+  --rust: #9a3412;
+  --rust-soft: #9a5b3c;
+  --rust-faint: #b0785c;
+  /* Fills only — 2.5:1 on cream, which is a bar and never a numeral. */
+  --orange: #f97316;
+  --orange-wash: #fde8d2;
+  --blue: #2563eb;
+  --danger: #dc2626;
+  --line: #fed7aa;
+  --line-faint: #fdeddc;
+  --mono: 'Fira Code', ui-monospace, 'Cascadia Mono', monospace;
+  --sans: 'Fira Sans', 'Segoe UI', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  background: var(--cream);
+  color: var(--rust);
+  font-family: var(--sans);
+}
+
+/*
+ * Natural height, not a stretched viewport.
+ *
+ * Pinning the records strip to the bottom of a tall window either strands it
+ * below a void or, if a panel is told to absorb the slack, moves the same void
+ * inside that panel. There is not enough on this screen to fill 1080px
+ * honestly, so the sheet is as tall as it is and the ground fills the rest.
+ */
+.sheet {
+  display: flex;
+  flex-direction: column;
+}
+
+.boot {
+  margin: auto;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rust-soft);
+}
+
+.lab {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--rust-soft);
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- masthead ---------- */
+.top {
+  display: flex;
+  align-items: baseline;
+  gap: 22px;
+  padding: 14px 26px;
+  border-bottom: 1px solid var(--line);
+}
+
+.mark {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.derive {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--rust-soft);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.lamp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--rust-soft);
+}
+
+.lamp i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--line);
+}
+
+.sheet.live .lamp {
+  color: var(--rust);
+}
+
+.sheet.live .lamp i {
+  background: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+}
+
+/* ---------- three columns ---------- */
+.main {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 260px;
+  border-bottom: 1px solid var(--line);
+}
+
+.col {
+  padding: 24px 26px;
+  min-width: 0;
+}
+
+.col + .col {
+  border-left: 1px solid var(--line);
+}
+
+.lv {
+  display: block;
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 46px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  margin: 4px 0 12px;
+}
+
+.lv sup {
+  font-size: 14px;
+  vertical-align: 22px;
+  letter-spacing: 0;
+  color: var(--rust-soft);
+}
+
+.track {
+  height: 6px;
+  background: var(--orange-wash);
+  position: relative;
+  overflow: hidden;
+}
+
+.track i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--orange);
+  transition: width 600ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.track.warn i {
+  background: var(--blue);
+}
+
+.track.danger i {
+  background: var(--danger);
+}
+
+.trackmeta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--rust-soft);
+}
+
+.lifetime {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.lifenum,
+.lifeusd {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.lifenum {
+  font-size: 19px;
+  margin-bottom: 8px;
+}
+
+.lifeusd {
+  font-size: 15px;
+}
+
+/* ---------- the number ---------- */
+.hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+
+.score {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: clamp(48px, 7.4vw, 104px);
+  line-height: 0.96;
+  letter-spacing: -0.045em;
+  margin: 10px 0 4px;
+}
+
+.score .odo {
+  display: inline-flex;
+  align-items: baseline;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.odo-fixed {
+  display: inline-block;
+}
+
+.odo-slot {
+  display: inline-block;
+  height: 1em;
+  width: 0.62em;
+  overflow: hidden;
+}
+
+.odo-reel {
+  display: flex;
+  flex-direction: column;
+  transition: transform 140ms cubic-bezier(0.16, 0.9, 0.3, 1);
+}
+
+.odo-reel > span {
+  height: 1em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pops {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pop {
+  position: absolute;
+  left: 50%;
+  top: 14%;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  color: var(--blue);
+  animation: rise 1400ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+
+.pop.huge {
+  font-size: 30px;
+  color: var(--danger);
+}
+
+@keyframes rise {
+  0% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--drift)), 18px) scale(0.82);
+  }
+  14% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--drift)), 4px) scale(1.06);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--drift)), -92px) scale(1);
+  }
+}
+
+@keyframes kick {
+  0% {
+    transform: scale(1);
+  }
+  22% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.kick {
+  animation: kick 520ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.under {
+  display: flex;
+  justify-content: center;
+  gap: 22px;
+  margin-top: 16px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.under b {
+  font-weight: 700;
+}
+
+.under span {
+  color: var(--rust-soft);
+  margin-left: -14px;
+}
+
+/* ---------- allowance ---------- */
+.mananum {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 27px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  margin: 4px 0 10px;
+}
+
+.manaof {
+  margin-top: 7px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--rust-soft);
+}
+
+.manasrc {
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--rust-faint);
+}
+
+.strip-lab {
+  margin-top: 20px;
+}
+
+.strip {
+  display: flex;
+  gap: 3px;
+  margin-top: 7px;
+}
+
+.strip i {
+  flex: 1;
+  height: 20px;
+  background: var(--line-faint);
+  border: 1px solid var(--line);
+}
+
+.strip i.on {
+  background: var(--orange);
+  border-color: var(--orange);
+}
+
+.strip i.today {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+/* ---------- skills and badges ---------- */
+.lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  border-bottom: 1px solid var(--line);
+}
+
+.lower > section {
+  padding: 22px 26px;
+  min-width: 0;
+}
+
+.lower > section + section {
+  border-left: 1px solid var(--line);
+}
+
+.skills {
+  margin-top: 10px;
+}
+
+.skill {
+  display: grid;
+  grid-template-columns: 124px minmax(0, 1fr) 62px 78px 56px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-faint);
+  font-size: 12.5px;
+}
+
+.skill:last-child {
+  border-bottom: none;
+}
+
+.skill .nm {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.skill .bar {
+  height: 4px;
+  background: var(--orange-wash);
+  position: relative;
+  overflow: hidden;
+}
+
+.skill .bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--orange);
+}
+
+.skill .vl,
+.skill .of {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.skill .of {
+  color: var(--rust-soft);
+}
+
+.skill .dots {
+  display: flex;
+  gap: 3px;
+  justify-content: flex-end;
+}
+
+.skill .dots i {
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--orange);
+}
+
+.skill .dots i.on {
+  background: var(--orange);
+}
+
+.badges {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.badge {
+  border: 1px solid var(--line);
+  background: var(--card);
+  padding: 10px;
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.badge svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  color: var(--orange);
+}
+
+.badge.off {
+  background: transparent;
+  border-style: dashed;
+  color: var(--rust-faint);
+}
+
+.badge.off svg {
+  color: #c8a08a;
+}
+
+.badge .bt {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+}
+
+.badge .bs {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--rust-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.badge.off .bs {
+  color: var(--rust-faint);
+}
+
+/* ---------- records ---------- */
+.records {
+  display: flex;
+}
+
+.record {
+  flex: 1;
+  padding: 12px 26px;
+  min-width: 0;
+}
+
+.record + .record {
+  border-left: 1px solid var(--line);
+}
+
+.rv {
+  display: block;
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
+.rn {
+  display: block;
+  font-size: 10.5px;
+  color: var(--rust-faint);
+  letter-spacing: 0.04em;
+}
+
+/* ---------- narrower windows ---------- */
+@media (max-width: 1080px) {
+  .main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .col + .col {
+    border-left: none;
+    border-top: 1px solid var(--line);
+  }
+
+  .lower {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lower > section + section {
+    border-left: none;
+    border-top: 1px solid var(--line);
+  }
+
+  .records {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pop {
+    display: none;
+  }
+
+  .kick,
+  .odo-reel,
+  .track i {
+    animation: none;
+    transition: none;
+  }
+}

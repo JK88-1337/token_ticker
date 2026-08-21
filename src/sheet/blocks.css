@@ -1,0 +1,560 @@
+/*
+ * Blocks — neo-brutalist character sheet.
+ *
+ * Deliberately single-theme, like the arcade cabinet and the gauge face: a
+ * white ground with black rules is the design, not a light-mode variant of
+ * something else, so every colour is stated rather than inherited.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Lexend+Mega:wght@700;800&family=Public+Sans:wght@400;600;700&display=swap');
+
+:root {
+  color-scheme: light;
+  --paper: #ffffff;
+  --ink: #000000;
+  --yellow: #ffe800;
+  --blue: #2b4bff;
+  --red: #ff3b30;
+  --amber: #ff9500;
+  --grey: #6b6b6b;
+  --grey-soft: #9b9b9b;
+  --edge: 3px solid #000000;
+  --display: 'Lexend Mega', 'Arial Black', system-ui, sans-serif;
+  --sans: 'Public Sans', 'Segoe UI', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+}
+
+/* Natural height rather than a stretched viewport — see gauge.css. */
+.sheet {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  gap: 18px;
+}
+
+.boot {
+  margin: auto;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+
+.lab {
+  display: block;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- masthead ---------- */
+.top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.mark {
+  border: var(--edge);
+  background: var(--ink);
+  color: var(--yellow);
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  padding: 7px 12px;
+}
+
+.title {
+  border: var(--edge);
+  background: var(--yellow);
+  box-shadow: 4px 4px 0 var(--ink);
+  padding: 7px 12px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.derive {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.lamp {
+  border: var(--edge);
+  background: var(--paper);
+  color: var(--ink);
+  padding: 7px 12px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lamp i {
+  width: 8px;
+  height: 8px;
+  background: var(--grey-soft);
+  display: block;
+}
+
+.sheet.live .lamp {
+  background: var(--blue);
+  color: var(--paper);
+}
+
+.sheet.live .lamp i {
+  background: var(--yellow);
+}
+
+/* ---------- the number, and what orbits it ---------- */
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr);
+  gap: 18px;
+  /* Stretch, not start: at `start` the yellow block ends short of the column
+     beside it and the pair reads as an L rather than a row. */
+  align-items: stretch;
+}
+
+.hero {
+  border: var(--edge);
+  background: var(--yellow);
+  box-shadow: 8px 8px 0 var(--ink);
+  padding: 20px 22px 18px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.score {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(40px, 6.6vw, 88px);
+  line-height: 0.92;
+  letter-spacing: -0.055em;
+  margin-top: 6px;
+}
+
+.score .odo {
+  display: inline-flex;
+  align-items: baseline;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.odo-fixed {
+  display: inline-block;
+}
+
+.odo-slot {
+  display: inline-block;
+  height: 1em;
+  width: 0.7em;
+  overflow: hidden;
+}
+
+.odo-reel {
+  display: flex;
+  flex-direction: column;
+  transition: transform 140ms cubic-bezier(0.16, 0.9, 0.3, 1);
+}
+
+.odo-reel > span {
+  height: 1em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pops {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pop {
+  position: absolute;
+  left: 50%;
+  top: 16%;
+  white-space: nowrap;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 26px;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--blue);
+  -webkit-text-stroke: 1px var(--ink);
+  animation: rise 1400ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+
+.pop.huge {
+  font-size: 38px;
+  color: var(--red);
+}
+
+@keyframes rise {
+  0% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--drift)), 20px) scale(0.8);
+  }
+  14% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--drift)), 4px) scale(1.08);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--drift)), -96px) scale(1);
+  }
+}
+
+@keyframes kick {
+  0% {
+    transform: scale(1);
+  }
+  20% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.kick {
+  animation: kick 520ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  transform-origin: left center;
+}
+
+.chips {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  border: var(--edge);
+  background: var(--paper);
+  padding: 5px 10px;
+  font-weight: 700;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chip.ink {
+  background: var(--ink);
+  color: var(--yellow);
+}
+
+/* ---------- level and allowance ---------- */
+.side {
+  display: grid;
+  gap: 18px;
+}
+
+.lvbox {
+  border: var(--edge);
+  background: var(--blue);
+  color: var(--paper);
+  box-shadow: 6px 6px 0 var(--ink);
+  padding: 16px;
+}
+
+.lv {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 40px;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  margin-top: 4px;
+}
+
+.lv sup {
+  font-size: 13px;
+  vertical-align: 18px;
+  letter-spacing: 0;
+  color: var(--yellow);
+}
+
+.bar {
+  height: 16px;
+  border: var(--edge);
+  background: var(--paper);
+  margin: 10px 0 6px;
+  position: relative;
+  overflow: hidden;
+}
+
+.bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--yellow);
+  border-right: 3px solid var(--ink);
+  transition: width 600ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.barmeta {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.manabox {
+  border: var(--edge);
+  background: var(--paper);
+  box-shadow: 6px 6px 0 var(--ink);
+  padding: 16px;
+}
+
+.mananum {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 26px;
+  letter-spacing: -0.045em;
+  margin-top: 4px;
+}
+
+.bar.hatched {
+  height: 22px;
+  background: repeating-linear-gradient(45deg, #f2f2f2 0 6px, #ffffff 6px 12px);
+}
+
+.bar.hatched i {
+  background: var(--blue);
+}
+
+.bar.hatched.warn i {
+  background: var(--amber);
+}
+
+.bar.hatched.danger i {
+  background: var(--red);
+}
+
+.manaof {
+  font-weight: 700;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.manasrc {
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--grey);
+}
+
+/* ---------- skills and badges ---------- */
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.box {
+  border: var(--edge);
+  background: var(--paper);
+  box-shadow: 6px 6px 0 var(--ink);
+  padding: 16px;
+}
+
+.skills {
+  margin-top: 10px;
+}
+
+.skill {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 2px solid var(--ink);
+  font-weight: 700;
+  font-size: 12.5px;
+}
+
+.skill:last-child {
+  border-bottom: none;
+}
+
+.skill .vl {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.skill .rungs {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 3px;
+}
+
+.skill .rungs i {
+  flex: 1;
+  height: 9px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+}
+
+.skill .rungs i.on {
+  background: var(--yellow);
+}
+
+/* The rung being climbed, filled to how far through it the count is. */
+.skill .rungs i.part {
+  background: linear-gradient(
+    to right,
+    var(--yellow) calc(var(--fill, 0) * 100%),
+    var(--paper) 0
+  );
+}
+
+.badgecol {
+  min-width: 0;
+}
+
+.badges {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.badge {
+  border: var(--edge);
+  background: var(--paper);
+  box-shadow: 4px 4px 0 var(--ink);
+  padding: 10px 11px;
+  width: calc(50% - 6px);
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.badge svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.badge.on {
+  background: var(--yellow);
+}
+
+.badge.off {
+  box-shadow: none;
+  border-style: dashed;
+  color: var(--grey);
+}
+
+.badge.off svg {
+  color: var(--grey-soft);
+}
+
+.badge .bt {
+  display: block;
+  font-weight: 700;
+  font-size: 11.5px;
+  line-height: 1.25;
+}
+
+.badge .bs {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- records ---------- */
+.records {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.record {
+  border: var(--edge);
+  background: var(--ink);
+  color: var(--paper);
+  padding: 9px 13px;
+  flex: 1;
+  min-width: 132px;
+}
+
+.record .lab {
+  color: var(--paper);
+}
+
+.rv {
+  display: block;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 17px;
+  letter-spacing: -0.03em;
+  color: var(--yellow);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
+/* ---------- narrower windows ---------- */
+@media (max-width: 1080px) {
+  .grid,
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .badge {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pop {
+    display: none;
+  }
+
+  .kick,
+  .odo-reel,
+  .bar i {
+    animation: none;
+    transition: none;
+  }
+}

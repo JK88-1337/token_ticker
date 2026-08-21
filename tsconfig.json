@@ -15,5 +15,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "tests", "scripts", "electron", "vite.config.ts", "vite.arcade.config.ts", "vite.usage-plugin.ts"]
+  "include": ["src", "tests", "scripts", "electron", "vite.config.ts", "vite.arcade.config.ts", "vite.sheet.config.ts", "vite.usage-plugin.ts"]
 }
