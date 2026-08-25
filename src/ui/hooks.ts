@@ -66,3 +66,26 @@ export function usePrevious<T>(value: T): T | undefined {
   }, [value]);
   return ref.current;
 }
+
+/**
+ * Samples a value that changes every frame down to something readable.
+ *
+ * The count eases at animation frame rate, which on a busy session moves the
+ * last four digits sixty times a second. A split-flap cell cannot fold that
+ * often — and a reader cannot follow it either — so the board is fed on an
+ * interval instead. The figure is never rounded, only sampled: the value that
+ * lands at rest is still the exact one.
+ */
+export function useSampled<T>(value: T, intervalMs: number): T {
+  const latest = useRef(value);
+  latest.current = value;
+
+  const [shown, setShown] = useState(value);
+
+  useEffect(() => {
+    const timer = setInterval(() => setShown(latest.current), intervalMs);
+    return () => clearInterval(timer);
+  }, [intervalMs]);
+
+  return shown;
+}

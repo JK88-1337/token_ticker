@@ -1,0 +1,547 @@
+/*
+ * The ticker skin.
+ *
+ * A board: a split-flap headline, a column of quotes, the allowance window,
+ * and a crawl along the bottom. Palette roles come from `styles.css` — nothing
+ * here invents a colour except the flap faces, which are deliberately the same
+ * dark board in both themes because that is what the physical object is.
+ */
+
+.ticker {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  min-height: 0;
+}
+
+/* ---- Headline ----------------------------------------------------------- */
+
+.marquee {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 28px;
+  padding: 16px 20px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.marquee-label,
+.panel-head h2 {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.marquee-flap {
+  display: block;
+  margin: 10px 0 8px;
+}
+
+.marquee-move {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.marquee-versus {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.marquee-stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(96px, auto));
+  gap: 14px 26px;
+}
+
+.marquee-stats div {
+  border-left: 1px solid var(--gridline);
+  padding-left: 12px;
+}
+
+.marquee-stats dt {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.marquee-stats dd {
+  margin: 2px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.marquee-stats small {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ---- Split-flap --------------------------------------------------------- */
+
+/*
+ * The board is a dark object in both themes — that is what the physical thing
+ * is — but it has to sit apart from whatever is behind it, and on a dark page
+ * a near-black face would vanish into the surface. So the face lifts in dark
+ * and drops in light, and only the face moves: the ink stays the same.
+ */
+:root {
+  --flap-face: #17171b;
+  --flap-ink: #f5f3ed;
+  --flap-seam: rgba(0, 0, 0, 0.6);
+  --flap-edge: rgba(255, 255, 255, 0.07);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --flap-face: #2a2a32;
+    --flap-ink: #ffffff;
+    --flap-seam: rgba(0, 0, 0, 0.55);
+    --flap-edge: rgba(255, 255, 255, 0.12);
+  }
+}
+
+:root[data-theme='dark'] {
+  --flap-face: #2a2a32;
+  --flap-ink: #ffffff;
+  --flap-seam: rgba(0, 0, 0, 0.55);
+  --flap-edge: rgba(255, 255, 255, 0.12);
+}
+
+.flap {
+  /* The cell is taller than the glyph so the digit sits inside the leaf
+     rather than bleeding over its edges — a flap board has margins. */
+  --cell-height: 1.26em;
+
+  display: inline-flex;
+  align-items: stretch;
+  gap: 3px;
+  font-size: clamp(34px, 6.4vw, 84px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.flap-fixed {
+  display: inline-flex;
+  align-items: flex-end;
+  width: 0.3em;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.flap-cell {
+  position: relative;
+  width: 0.72em;
+  height: var(--cell-height);
+  perspective: 320px;
+  background: var(--flap-face);
+  border-radius: 4px;
+  color: var(--flap-ink);
+  /* The seam is the tell: without a hard line across the middle the cell
+     reads as a rounded box rather than as two leaves. */
+  box-shadow:
+    inset 0 0 0 1px var(--flap-edge),
+    inset 0 -1px 0 var(--flap-seam);
+}
+
+.flap-half {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 50%;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  /* A line box the height of the whole cell, so the glyph is centred in the
+     cell and each half shows exactly half of it. */
+  line-height: var(--cell-height);
+  background: var(--flap-face);
+}
+
+.flap-top {
+  top: 0;
+  align-items: flex-start;
+  border-radius: 4px 4px 0 0;
+  border-bottom: 1px solid var(--flap-seam);
+}
+
+.flap-bottom {
+  bottom: 0;
+  align-items: flex-end;
+  border-radius: 0 0 4px 4px;
+}
+
+.flap-leaf {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 50%;
+  backface-visibility: hidden;
+}
+
+/* Inside a leaf the clipping window is the leaf itself, which is already
+   half a cell tall — so the half fills it rather than halving it again. */
+.flap-leaf > .flap-half {
+  height: 100%;
+}
+
+.flap-leaf-top {
+  top: 0;
+  transform-origin: bottom;
+  animation: fold-away 90ms ease-in forwards;
+}
+
+.flap-leaf-bottom {
+  bottom: 0;
+  transform-origin: top;
+  transform: rotateX(90deg);
+  animation: fold-down 90ms 90ms ease-out forwards;
+}
+
+@keyframes fold-away {
+  to {
+    transform: rotateX(-90deg);
+  }
+}
+
+@keyframes fold-down {
+  from {
+    transform: rotateX(90deg);
+  }
+  to {
+    transform: rotateX(0deg);
+  }
+}
+
+/* ---- Moves -------------------------------------------------------------- */
+
+/* Shape carries the state as well as colour: ▲ and ▼ differ without it. */
+.move {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.move.up {
+  color: var(--status-good);
+}
+
+.move.down {
+  color: var(--status-critical);
+}
+
+/* ---- Board -------------------------------------------------------------- */
+
+.ticker-board {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    'quotes window'
+    'quotes detail';
+  gap: 10px;
+  min-height: 0;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  min-height: 0;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 14px 9px;
+  border-bottom: 1px solid var(--border);
+}
+
+.quotes {
+  grid-area: quotes;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.window {
+  grid-area: window;
+  padding-bottom: 12px;
+}
+
+.ticker .detail {
+  grid-area: detail;
+}
+
+/* ---- Quote table -------------------------------------------------------- */
+
+.quote-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.quote-table tr {
+  border-bottom: 1px solid var(--gridline);
+}
+
+.quote-table tr:last-child {
+  border-bottom: none;
+}
+
+.quote-table th {
+  text-align: left;
+  padding: 0 0 0 14px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-secondary);
+}
+
+.quote-table td {
+  padding: 7px 14px 7px 0;
+  text-align: right;
+  font-size: 13px;
+}
+
+.quote-value {
+  font-weight: 650;
+}
+
+.quote-move {
+  width: 82px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.quote-arrow {
+  font-size: 9px;
+  vertical-align: 1px;
+}
+
+/* The day's total leads the board, so it is set apart from its own parts. */
+.quote-table .lead th,
+.quote-table .lead td {
+  font-size: 15px;
+  font-weight: 750;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  color: var(--text-primary);
+}
+
+.quote-table .lead {
+  border-bottom: 1px solid var(--border);
+}
+
+/* ---- Session window ----------------------------------------------------- */
+
+.tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.tag.clear {
+  color: var(--status-good);
+}
+
+.tag.warning {
+  color: var(--status-warning);
+}
+
+.tag.critical {
+  color: var(--status-critical);
+}
+
+.window-figure {
+  margin: 12px 14px 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 28px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.window-of {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.window-track {
+  height: 8px;
+  margin: 0 14px;
+  background: var(--gridline);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.window-fill {
+  height: 100%;
+  background: var(--status-good);
+  transition: width 600ms ease-out;
+}
+
+.window-fill.warning {
+  background: var(--status-warning);
+}
+
+.window-fill.critical {
+  background: var(--status-critical);
+}
+
+.window-fill.unknown {
+  background: var(--baseline);
+}
+
+.window .caption {
+  margin: 8px 14px 12px;
+}
+
+/* ---- Token classes ------------------------------------------------------ */
+
+.classes {
+  list-style: none;
+  margin: 0;
+  padding: 0 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.classes li {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) 60px 74px;
+  align-items: center;
+  gap: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.class-name {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.class-track {
+  height: 6px;
+  background: var(--gridline);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.class-fill {
+  display: block;
+  height: 100%;
+  background: var(--series-1);
+  transition: width 600ms ease-out;
+}
+
+.class-value {
+  font-size: 12px;
+  font-weight: 650;
+  text-align: right;
+}
+
+.class-share {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/* ---- Crawl -------------------------------------------------------------- */
+
+.tape {
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tape-belt {
+  display: flex;
+  width: max-content;
+  animation-name: crawl;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* A figure you have to chase is a figure you cannot read. */
+.tape:hover .tape-belt {
+  animation-play-state: paused;
+}
+
+.tape-run {
+  display: flex;
+}
+
+.tape-item {
+  padding: 9px 20px;
+  white-space: nowrap;
+  border-right: 1px solid var(--gridline);
+  color: var(--text-secondary);
+}
+
+.tape-item b {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  margin-right: 6px;
+}
+
+.tape-item i {
+  font-style: normal;
+  margin-left: 6px;
+}
+
+@keyframes crawl {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    /* Exactly half: the second copy is standing where the first began. */
+    transform: translateX(-50%);
+  }
+}
+
+@media (max-width: 900px) {
+  .marquee {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ticker-board {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'window'
+      'quotes'
+      'detail';
+  }
+}
