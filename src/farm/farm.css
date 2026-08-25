@@ -1,0 +1,398 @@
+/*
+ * The farm skin.
+ *
+ * The board across the top is the ticker's, at a smaller size — the game is
+ * the reward for what it counts, so it is never the largest thing on screen.
+ * Panels, moves and captions all come from the shared roles in `styles.css`.
+ */
+
+.farm {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  min-height: 0;
+}
+
+/* ---- The real board, kept in front ---------------------------------------*/
+
+.farm-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 18px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.farm-flap {
+  /* Half the ticker's headline: still the biggest figure in the window, and
+     still the first thing read. */
+  font-size: clamp(24px, 3.4vw, 44px);
+  margin-top: 6px;
+}
+
+.farm .marquee-stats {
+  grid-template-columns: repeat(4, minmax(84px, auto));
+}
+
+.coins {
+  color: var(--series-4);
+}
+
+/* ---- Layout --------------------------------------------------------------*/
+
+.farm-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(240px, 0.85fr) minmax(230px, 0.8fr);
+  gap: 10px;
+  min-height: 0;
+}
+
+.field,
+.wheel-panel,
+.shop {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* The ornament row is only there once something has been bought, so the
+   track collapses to nothing until it is. */
+.field {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.ornaments {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--gridline);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Header fixed, everything under it scrolls: the odds table and the shop
+   both grow past a short window, and a panel that clips them silently is
+   worse than one that scrolls. */
+.panel-body {
+  min-height: 0;
+  overflow: auto;
+}
+
+.field-hint {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ---- Plots ---------------------------------------------------------------*/
+
+.plots {
+  list-style: none;
+  margin: 0;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-height: 0;
+}
+
+.plot {
+  width: 100%;
+  height: 100%;
+  min-height: 120px;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
+  justify-items: center;
+  align-content: center;
+  gap: 5px;
+  padding: 10px 8px;
+  font: inherit;
+  cursor: pointer;
+  /* Bare earth is a dashed outline rather than a filled tile: an empty plot
+     should read as an invitation, not as a thing that is already there. */
+  background: none;
+  border: 1px dashed var(--baseline);
+  border-radius: 4px;
+  color: var(--text-secondary);
+}
+
+.plot:hover:not(:disabled) {
+  border-color: var(--text-secondary);
+}
+
+.plot:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.plot.sown {
+  border-style: solid;
+  border-color: var(--border);
+  background: color-mix(in oklab, var(--series-3) 7%, var(--surface));
+}
+
+.plot.ripe {
+  border-color: var(--status-good);
+  background: color-mix(in oklab, var(--status-good) 12%, var(--surface));
+  color: var(--text-primary);
+}
+
+.plot-art {
+  font-size: 30px;
+  line-height: 1.1;
+  align-self: center;
+}
+
+.plot.ripe .plot-art {
+  animation: ripen 2.4s ease-in-out infinite;
+}
+
+@keyframes ripen {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.06);
+  }
+}
+
+.plot-name {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.plot-name.bare {
+  color: var(--text-muted);
+}
+
+.plot-track {
+  width: 100%;
+  height: 4px;
+  background: var(--gridline);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.plot-fill {
+  display: block;
+  height: 100%;
+  background: var(--series-3);
+  transition: width 600ms ease-out;
+}
+
+.plot.ripe .plot-fill {
+  background: var(--status-good);
+}
+
+.plot-note {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Wheel ---------------------------------------------------------------*/
+
+.wheel-wrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 16px 0 6px;
+}
+
+.wheel {
+  width: min(190px, 60%);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  transition-property: transform;
+  /* Fast away, long settle — the last few degrees are the whole point. */
+  transition-timing-function: cubic-bezier(0.15, 0.85, 0.12, 1);
+}
+
+.wheel-pointer {
+  position: absolute;
+  top: 6px;
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 12px solid var(--text-primary);
+  z-index: 2;
+}
+
+.wheel-hub {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.spin {
+  margin: 4px 14px 0;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--page);
+  background: var(--text-primary);
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.spin:disabled {
+  cursor: not-allowed;
+  color: var(--text-muted);
+  background: var(--gridline);
+}
+
+.wheel-panel .caption,
+.shop .caption {
+  margin: 10px 14px;
+}
+
+.odds {
+  list-style: none;
+  margin: 0;
+  padding: 0 14px 14px;
+  display: grid;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.odds li {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.odds-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.odds-weight {
+  color: var(--text-muted);
+}
+
+/* ---- Shop ----------------------------------------------------------------*/
+
+.seeds,
+.trinkets {
+  list-style: none;
+  margin: 0;
+  padding: 10px 12px 0;
+  display: grid;
+  gap: 6px;
+}
+
+.trinkets {
+  padding-top: 6px;
+  border-top: 1px solid var(--gridline);
+  margin-top: 8px;
+}
+
+.seed,
+.trinket {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding: 7px 9px;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.seed:hover:not(:disabled),
+.trinket:hover:not(:disabled) {
+  border-color: var(--border);
+}
+
+.seed.on {
+  border-color: var(--text-primary);
+  background: color-mix(in oklab, var(--text-primary) 6%, transparent);
+}
+
+.seed:disabled,
+.trinket:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.trinket.owned {
+  opacity: 1;
+  color: var(--text-muted);
+}
+
+.seed-art {
+  font-size: 18px;
+}
+
+.seed-name {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.seed-price {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--series-4);
+}
+
+.seed-note {
+  grid-column: 2 / -1;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wheel {
+    transition: none;
+  }
+
+  .plot.ripe .plot-art {
+    animation: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .farm-body {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 0.8fr);
+  }
+
+  .shop {
+    grid-column: 1 / -1;
+  }
+}

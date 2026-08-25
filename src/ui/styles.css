@@ -514,3 +514,37 @@ body {
     transform: none;
   }
 }
+
+/* ---- Skin switch -------------------------------------------------------- */
+
+.skins {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+
+.skin {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 3px 11px 4px;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.skin:hover {
+  color: var(--text-secondary);
+}
+
+.skin.on {
+  color: var(--page);
+  background: var(--text-primary);
+}

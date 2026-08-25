@@ -1,9 +1,29 @@
 import { useEffect, useState } from 'react';
 import { COMBO_GAP_MS } from '../core/momentum.js';
 import type { UsageSnapshot } from '../core/snapshot.js';
+import { Farm } from '../farm/Farm.js';
 import { Ticker } from '../ticker/Ticker.js';
 import { subscribeToUsage } from './feed.js';
 import { count } from './format.js';
+
+/**
+ * Which skin is on.
+ *
+ * The ticker is the default and always will be: the farm is a game played
+ * with the same numbers, and a measuring tool that opens on a game is no
+ * longer a measuring tool.
+ */
+type Skin = 'ticker' | 'farm';
+
+const SKIN_KEY = 'token-ticker.skin';
+
+function storedSkin(): Skin {
+  try {
+    return window.localStorage.getItem(SKIN_KEY) === 'farm' ? 'farm' : 'ticker';
+  } catch {
+    return 'ticker';
+  }
+}
 
 /**
  * The shell.
@@ -18,6 +38,15 @@ export function App() {
   // When the transcript was last written without anything billable landing —
   // a turn mid-generation. Evidence of work, not a token count.
   const [activityAt, setActivityAt] = useState(0);
+  const [skin, setSkin] = useState<Skin>(storedSkin);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SKIN_KEY, skin);
+    } catch {
+      // A preference that cannot be written still holds for this session.
+    }
+  }, [skin]);
 
   useEffect(() => {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -80,13 +109,26 @@ export function App() {
 
         <span className="hud-bar-spacer" />
 
+        <nav className="skins" aria-label="View">
+          {(['ticker', 'farm'] as const).map((id) => (
+            <button
+              key={id}
+              className={skin === id ? 'skin on' : 'skin'}
+              aria-pressed={skin === id}
+              onClick={() => setSkin(id)}
+            >
+              {id}
+            </button>
+          ))}
+        </nav>
+
         {snapshot.totals.unpricedTurns > 0 ? (
           <span className="hud-warn">{count(snapshot.totals.unpricedTurns)} turns unpriced</span>
         ) : null}
         <span className="hud-zone">unofficial · {snapshot.timeZone}</span>
       </header>
 
-      <Ticker snapshot={snapshot} />
+      {skin === 'farm' ? <Farm snapshot={snapshot} /> : <Ticker snapshot={snapshot} />}
     </div>
   );
 }

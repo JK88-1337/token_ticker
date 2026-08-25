@@ -20,25 +20,57 @@ counting. If Claude Code has never run on the machine, it will say so.
 
 ## What it shows
 
-**Tokens today**, to every digit, rolling toward the real figure rather than
-snapping to it — with a rate in tokens per second, a line of the day's running
-total, and a meter tracking your best day on record.
+It opens on **the ticker**, and always will.
 
-**Combo** — how many turns have arrived back to back with no pause longer than
-two minutes. It decays on its own the moment you stop, which is what makes it
-worth watching.
+**Tokens today** on a split-flap board, to every digit, rolling toward the real
+figure rather than snapping to it — with a rate in tokens per second, the day's
+equivalent value, turns, combo, level and streak beside it.
+
+**The quotes** — every line of the day against the last day you actually
+worked, which is named on the board rather than assumed to be yesterday: total,
+cache reads, cache writes, fresh input, reply, thinking, turns and value, each
+with a real move. Models carry a share instead of an arrow, because the
+transcripts do not record a model per day and a move it cannot know is a move
+it will not claim.
 
 **Session window** — what the current five-hour allowance window holds, against
 a ceiling measured from the window you were actually cut off in, plus a
-breakdown of what those tokens were: cache reads and writes, fresh input,
-thinking, reply.
+breakdown of what those tokens were.
 
-Underneath: spend per day, and shares by model and by project.
+Underneath: spend per day, and shares by model and by project. Along the
+bottom, the crawl.
 
 Updates are pushed from a filesystem watcher, not polled. A turn reaches the
 screen about as fast as Claude Code can write it — measured on a working
 session, roughly every three to six seconds, because every tool call is its own
 API response with its own usage block.
+
+## The farm
+
+Behind the second tab is a game played with the same numbers, and it is a
+second tab on purpose: a measuring tool that opens on a game is not a
+measuring tool.
+
+Eight plots. Crops ripen on **work tokens** — every class except cache reads,
+the same measure the allowance gauge uses — so a field grows because you
+worked, not because time passed. Wheat is an afternoon; goldgrain is a heavy
+week. Harvest pays coins, coins buy better seed, and every ten million tokens
+mints one spin of the wheel.
+
+**You cannot play yourself into a corner**, and that is enforced in code rather
+than in the copy — see `src/farm/economy.ts`, and the tests that hold it:
+
+- The wheel costs a spin, never coins, and every wedge on it pays. A turn can
+  only leave you better off.
+- Wheat is free forever, so there is always something to plant and something
+  to harvest.
+- No move that would take coins below zero happens at all.
+- Spins are minted by tokens you have already spent, so the only way to run
+  out is to stop working — and the only way to earn more is to start again.
+
+The outcome of every spin is fixed by the save's own seed the moment the save
+exists, so reloading mid-spin lands on the same wedge. There is no reroll to
+scum for.
 
 ## What is honest about the numbers
 
@@ -68,6 +100,12 @@ have cost pay-as-you-go. Treat it as a measure of compute extracted. Rates come
 from [`src/core/pricing-table.json`](src/core/pricing-table.json), which records
 where its numbers came from and when they were last checked — verify against
 that source before trusting a total.
+
+**Coins are not a measurement.** Everything on the ticker traces back to a
+transcript. Coins, crops and trinkets do not — they are a game, they are worth
+nothing, and no figure the ticker reports is affected by anything bought or
+won. The farm's save is the only thing this app writes anywhere; delete it and
+the measuring side is untouched.
 
 **Duplicates are removed.** Resuming or branching a session copies earlier turns
 into a new transcript, so the same API call is recorded more than once. On a
@@ -117,6 +155,8 @@ For breakpoints, VS Code launch configurations are checked in: **Debug tests**,
   → src/core/summary.ts       totals and buckets
   → src/core/snapshot.ts      UsageSnapshot — the whole contract
   → renderer                  over IPC when packaged, SSE in development
+       src/ticker/            the default skin: flaps, quotes, crawl
+       src/farm/              the game, on the same snapshot
 ```
 
 Aggregation happens before the snapshot crosses that boundary, so the payload
