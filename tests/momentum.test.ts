@@ -6,7 +6,10 @@ import {
   dailyStreak,
   levelFor,
   longestCombo,
-  tokenRatePerSecond,
+  comboTimeLeft,
+  nextComboTier,
+  rateSeries,
+  tokenRatePerMinute,
 } from '../src/core/momentum.js';
 
 const SECOND = 1000;
@@ -158,12 +161,111 @@ describe('levelFor', () => {
   });
 });
 
-describe('tokenRatePerSecond', () => {
+describe('rateSeries', () => {
+  const start = Date.parse('2026-08-21T10:00:00Z');
+  const at = (secondsIn: number) => new Date(start + secondsIn * SECOND).toISOString();
+  const turn = (secondsIn: number, tokens: number) => ({ at: at(secondsIn), tokens });
+
+  it('samples the trailing rate as it stood at each turn, the turn included', () => {
+    const series = rateSeries([turn(0, 1_000), turn(30, 2_000)], 60 * SECOND);
+
+    expect(series).toEqual([
+      { at: at(0), value: 1_000, weight: 1_000 },
+      { at: at(30), value: 3_000, weight: 2_000 },
+    ]);
+  });
+
+  it('falls back as earlier turns age out of the window', () => {
+    const series = rateSeries([turn(0, 90_000), turn(120, 600)], 60 * SECOND);
+
+    expect(series[1]!.value).toBe(600);
+  });
+
+  it('scales the window to a minute rather than reporting its raw total', () => {
+    const series = rateSeries([turn(0, 500)], 30 * SECOND);
+
+    expect(series[0]!.value).toBe(1_000);
+  });
+
+  it('reads in the order the turns happened, whatever order they arrive in', () => {
+    const series = rateSeries([turn(30, 2_000), turn(0, 1_000)], 60 * SECOND);
+
+    expect(series.map((tick) => tick.at)).toEqual([at(0), at(30)]);
+  });
+
+  it('drops a turn with an unreadable timestamp instead of sorting it to one end', () => {
+    const series = rateSeries([{ at: 'not a time', tokens: 5_000 }, turn(0, 1_000)], 60 * SECOND);
+
+    expect(series).toEqual([{ at: at(0), value: 1_000, weight: 1_000 }]);
+  });
+
+  it('samples on a clock as well as at the turns, so one turn is not one flat candle', () => {
+    // Sampled only where turns land, these two turns are two points and a
+    // candle cut from them has no high and no low worth the name.
+    const series = rateSeries([turn(0, 1_000), turn(45, 1_000)], 60 * SECOND, 15 * SECOND);
+
+    expect(series.map((tick) => tick.value)).toEqual([
+      1_000, // the first turn lands
+      1_000, // …and stands, on the clock, while it is still in the window
+      1_000,
+      2_000, // the second turn lands on top of it
+      1_000, // the first ages out
+      1_000,
+      1_000,
+    ]);
+  });
+
+  it('stops sampling once the window is empty, so a quiet stretch is a gap', () => {
+    const series = rateSeries([turn(0, 1_000), turn(600, 1_000)], 60 * SECOND, 15 * SECOND);
+    const gap = series.filter(
+      (tick) => Date.parse(tick.at) > start + 60 * SECOND && Date.parse(tick.at) < start + 600 * SECOND,
+    );
+
+    expect(gap).toEqual([]);
+    expect(series.every((tick) => tick.value > 0)).toBe(true);
+  });
+
+  it('gives a clock sample no weight of its own, so volume stays what was spent', () => {
+    const series = rateSeries([turn(0, 1_000), turn(45, 3_000)], 60 * SECOND, 15 * SECOND);
+
+    expect(series.reduce((sum, tick) => sum + tick.weight, 0)).toBe(4_000);
+  });
+
+  it('samples at the turns alone when no clock is asked for', () => {
+    expect(rateSeries([turn(0, 1_000), turn(45, 1_000)], 60 * SECOND)).toHaveLength(2);
+  });
+
+  it('has nothing to plot when nothing has happened', () => {
+    expect(rateSeries([], 60 * SECOND)).toEqual([]);
+  });
+});
+
+describe('a combo running out', () => {
+  const now = Date.parse('2026-08-21T10:00:00Z');
+  const at = (secondsAgo: number) => new Date(now - secondsAgo * SECOND).toISOString();
+
+  it('counts down from the last turn to the gap that would break the run', () => {
+    expect(comboTimeLeft([at(200), at(30)], now, 120 * SECOND)).toBe(90 * SECOND);
+  });
+
+  it('is nothing once the run is already broken', () => {
+    expect(comboTimeLeft([at(600), at(300)], now, 120 * SECOND)).toBe(0);
+    expect(comboTimeLeft([], now, 120 * SECOND)).toBe(0);
+  });
+
+  it('names the rung a run is climbing towards, and what it takes to get there', () => {
+    expect(nextComboTier(1)).toMatchObject({ name: 'WARMING UP', from: 2, toGo: 1 });
+    expect(nextComboTier(6)).toMatchObject({ name: 'ON FIRE', from: 10, toGo: 4 });
+    expect(nextComboTier(50)).toBeNull();
+  });
+});
+
+describe('tokenRatePerMinute', () => {
   const now = Date.parse('2026-08-21T10:00:00Z');
   const at = (secondsAgo: number) => new Date(now - secondsAgo * SECOND).toISOString();
 
   it('averages the tokens of the window over its length', () => {
-    const rate = tokenRatePerSecond(
+    const rate = tokenRatePerMinute(
       [
         { at: at(90), usd: 0, tokens: 3000, work: 3000 },
         { at: at(10), usd: 0, tokens: 3000, work: 3000 },
@@ -172,11 +274,11 @@ describe('tokenRatePerSecond', () => {
       120 * SECOND,
     );
 
-    expect(rate).toBeCloseTo(50, 10);
+    expect(rate).toBeCloseTo(3_000, 10);
   });
 
   it('ignores turns from before the window', () => {
-    const rate = tokenRatePerSecond(
+    const rate = tokenRatePerMinute(
       [
         { at: at(9000), usd: 0, tokens: 999_999, work: 999_999 },
         { at: at(10), usd: 0, tokens: 600, work: 600 },
@@ -185,11 +287,11 @@ describe('tokenRatePerSecond', () => {
       60 * SECOND,
     );
 
-    expect(rate).toBeCloseTo(10, 10);
+    expect(rate).toBeCloseTo(600, 10);
   });
 
   it('falls to nothing when the window empties', () => {
-    expect(tokenRatePerSecond([], now, 60 * SECOND)).toBe(0);
+    expect(tokenRatePerMinute([], now, 60 * SECOND)).toBe(0);
   });
 });
 

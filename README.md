@@ -23,8 +23,16 @@ counting. If Claude Code has never run on the machine, it will say so.
 It opens on **the ticker**, and always will.
 
 **Tokens today** on a split-flap board, to every digit, rolling toward the real
-figure rather than snapping to it — with a rate in tokens per second, the day's
-equivalent value, turns, combo, level and streak beside it.
+figure rather than snapping to it.
+
+**The combo**, beside it and deliberately the loudest thing on the board: the
+run of turns you are on, what it is called, and the gap draining away — a
+combo is the one figure here that can be lost in the next two minutes, so it
+is drawn as the clock it actually is. **Level** sits next to it in the same
+shape but quieter, because it is banked and only ever goes up. Then the
+smaller figures: a rate in **tokens per minute** — turns arrive seconds apart
+and carry thousands of tokens each, so per second reads as zeroes and spikes —
+the day's equivalent value, turns, and streak.
 
 **The quotes** — every line of the day against the last day you actually
 worked, which is named on the board rather than assumed to be yesterday: total,
@@ -36,6 +44,27 @@ it will not claim.
 **Session window** — what the current five-hour allowance window holds, against
 a ceiling measured from the window you were actually cut off in, plus a
 breakdown of what those tokens were.
+
+**Candles** — open, high, low and close on **the pace the work is going at**,
+in tokens a minute, over one minute (the view it opens on), an hour, or a day.
+
+A rate is used rather than the size of a turn because it is the only figure
+here that behaves like a price: it carries from the close of one period into
+the open of the next, so green means the pace picked up over that period and
+red means it eased off, and it cannot run away upwards — stop working and it
+falls back on its own. A dashed line marks your typical pace so fast and slow
+are read against a normal, and a tag on the right shows where the pace stands
+now. Only periods with turns in them are drawn, so a gap is a gap rather than a
+flat line the chart invented, and the strip underneath stays what the period
+actually spent.
+
+The pace is sampled **every five seconds**, not once per turn. Sampled at the
+turns alone a one-minute candle would hold one or two readings and its open,
+high, low and close would all be the same number — a chart of dashes. On a
+clock the same minute holds a dozen, the wick is the real peak and trough the
+pace passed through, and each candle opens exactly where the one before it
+closed. Sampling stops whenever the trailing window empties and resumes at the
+next turn, so an idle hour costs nothing and invents nothing.
 
 Underneath: spend per day, and shares by model and by project. Along the
 bottom, the crawl.
@@ -53,24 +82,63 @@ measuring tool.
 
 Eight plots. Crops ripen on **work tokens** — every class except cache reads,
 the same measure the allowance gauge uses — so a field grows because you
-worked, not because time passed. Wheat is an afternoon; goldgrain is a heavy
-week. Harvest pays coins, coins buy better seed, and every ten million tokens
-mints one spin of the wheel.
+worked, not because time passed. One plot of wheat is an afternoon; one of
+goldgrain is a heavy week.
+
+**The field shares the work.** Each batch of tokens is dealt out in equal
+whole shares between the plots that are actually in the ground, so sowing a
+second plot halves the speed of the first — filling the field spreads the same
+effort thinner rather than multiplying it, and what will not divide is carried
+to the next deal rather than rounded away. Work done while the plots are bare
+is banked nowhere: empty earth is a cost. Harvest pays coins, coins buy better seed, and every ten million tokens
+mints one spin of a European single-zero wheel: 0 to 36, eighteen red and
+eighteen black, seated in the order a real wheel head runs rather than in
+counting order. The felt takes what a real one takes — red or black, odd or
+even, 1–18 or 19–36 at even money, a dozen or a column at 2 to 1, and a single
+number at 35 to 1.
 
 **You cannot play yourself into a corner**, and that is enforced in code rather
 than in the copy — see `src/farm/economy.ts`, and the tests that hold it:
 
-- The wheel costs a spin, never coins, and every wedge on it pays. A turn can
-  only leave you better off.
 - Wheat is free forever, so there is always something to plant and something
-  to harvest.
-- No move that would take coins below zero happens at all.
-- Spins are minted by tokens you have already spent, so the only way to run
-  out is to stop working — and the only way to earn more is to start again.
+  to harvest, even after a lost bet.
+- No move that would take coins below zero happens at all. A stake you cannot
+  cover is refused.
+- Spins are minted by tokens you have already spent. The wheel is a table,
+  not a mint: every wager on it loses one pocket in thirty-seven to the green
+  zero, whatever it pays. A turn can leave you poorer. Coins come from the
+  field.
 
 The outcome of every spin is fixed by the save's own seed the moment the save
-exists, so reloading mid-spin lands on the same wedge. There is no reroll to
+exists, so reloading mid-spin lands on the same pocket. There is no reroll to
 scum for.
+
+### Where the save lives
+
+In this machine's app data, under the key `token-ticker.farm.v1` — the
+packaged app keeps its own partition (`%APPDATA%/token_ticker` on Windows,
+`~/Library/Application Support/token_ticker` on macOS), so closing the window,
+rebooting and updating the app all leave it where it was. It is written every
+time the farm changes, not on quit, so a crash costs nothing.
+
+Three rules keep it from going quietly (`src/farm/storage.ts`):
+
+- **A save that cannot be read is never written over.** It is moved to
+  `token-ticker.farm.broken` first, so a bad write or a migration that goes
+  wrong leaves something to recover from instead of an empty field.
+- **The save being replaced is kept**, one deep, under
+  `token-ticker.farm.backup`. If the current one will not load, that one is
+  tried before starting fresh.
+- **A store that refuses to write does not stop the game.** Full, disabled, or
+  a private window: the farm still plays for the session.
+
+What none of that survives is clearing the browser's data, renaming the app, or
+a new laptop — the save is scoped to the app's own storage, and the dev server
+on `localhost` is a different scope again from the packaged build. So **the
+save is also offered as text**, under "The save" beneath the field: copy it
+somewhere safe, paste it back anywhere. A pasted save is adopted onto whatever
+token count the machine it lands on has, so it carries on growing from where it
+was rather than ripening the whole field at once on arrival.
 
 ## What is honest about the numbers
 

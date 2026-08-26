@@ -1,18 +1,38 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { totalTokens, workTokens } from '../core/limits.js';
 import {
   COMBO_GAP_MS,
+  COMBO_TIERS,
   comboLength,
   comboTier,
+  comboTimeLeft,
+  RATE_SAMPLE_MS,
+  RATE_WINDOW_MS,
+  rateSeries,
+  nextComboTier,
   dailyStreak,
   levelFor,
-  tokenRatePerSecond,
+  tokenRatePerMinute,
 } from '../core/momentum.js';
+import { candlesBy } from '../core/candles.js';
 import type { UsageSnapshot } from '../core/snapshot.js';
 import type { UsageBucket } from '../core/summary.js';
 import { Breakdown, DailyBars, type BreakdownItem } from '../ui/charts.js';
-import { compact, count, full, projectName, shortDay, todayKey, usd } from '../ui/format.js';
+import {
+  compact,
+  count,
+  full,
+  hourKey,
+  minuteKey,
+  projectName,
+  shortDay,
+  shortHour,
+  shortMinute,
+  todayKey,
+  usd,
+} from '../ui/format.js';
 import { useAnimatedValue, useNow, useSampled } from '../ui/hooks.js';
+import { Candles } from './Candles.js';
 import { Flap } from './Flap.js';
 import { Tape } from './Tape.js';
 import { dayQuotes, direction, modelQuotes, type Quote } from './quotes.js';
@@ -20,8 +40,6 @@ import './ticker.css';
 
 /** How many active days the trend shows. */
 const TREND_DAYS = 45;
-/** Short enough that the rate jumps the moment a turn lands. */
-const RATE_WINDOW_MS = 60_000;
 /**
  * How often the board is fed. Twelve folds a second reads as a board working
  * hard; sixty reads as a smear, and costs sixty renders to say the same thing.
@@ -46,7 +64,10 @@ const SERIES = [
   'var(--series-8)',
 ];
 
-type Tab = 'days' | 'models' | 'projects' | 'ceiling';
+type Tab = 'candles' | 'days' | 'models' | 'projects' | 'ceiling';
+
+/** Which period the candles are cut into. */
+type Grain = 'day' | 'hour' | 'minute';
 
 const ARROW = { up: '▲', down: '▼', flat: '—', none: '·' } as const;
 
@@ -100,7 +121,8 @@ function pressure(used: number, ceiling: number | null) {
  */
 export function Ticker({ snapshot }: { snapshot: UsageSnapshot }) {
   const now = useNow(1000);
-  const [tab, setTab] = useState<Tab>('models');
+  const [tab, setTab] = useState<Tab>('candles');
+  const [grain, setGrain] = useState<Grain>('minute');
 
   const key = todayKey(snapshot.timeZone);
   const today = snapshot.byDay.find((bucket) => bucket.key === key);
@@ -115,13 +137,14 @@ export function Ticker({ snapshot }: { snapshot: UsageSnapshot }) {
   const total = quotes[0]!;
   const against = board.against ? `against ${shortDay(board.against)}` : 'no day before this one';
 
-  const rate = tokenRatePerSecond(snapshot.recent, now, RATE_WINDOW_MS);
-  const combo = comboLength(
-    snapshot.recent.map((event) => event.at),
-    now,
-    COMBO_GAP_MS,
-  );
+  const rate = tokenRatePerMinute(snapshot.recent, now, RATE_WINDOW_MS);
+  const turnTimes = useMemo(() => snapshot.recent.map((event) => event.at), [snapshot]);
+  const combo = comboLength(turnTimes, now, COMBO_GAP_MS);
   const tier = comboTier(combo);
+  const nextTier = nextComboTier(combo);
+  // How long the run has left before a pause breaks it, as a share of the gap.
+  const held = comboTimeLeft(turnTimes, now, COMBO_GAP_MS);
+  const holding = held / COMBO_GAP_MS;
   const streak = dailyStreak(
     snapshot.byDay.map((bucket) => bucket.key),
     key,
@@ -141,7 +164,30 @@ export function Ticker({ snapshot }: { snapshot: UsageSnapshot }) {
 
   const { byDay, byModel, byProject, limitHits, totals, window: session } = snapshot;
 
+  /**
+   * The pace at each of the recent turns, which the hour and minute candles
+   * are both cut from. It comes off `recent` rather than the whole history
+   * because `recent` is the only per-turn detail that travels with a snapshot
+   * — which is also why those views reach back only as far as they do, and
+   * say so.
+   */
+  const pace = useMemo(
+    () => rateSeries(snapshot.recent, RATE_WINDOW_MS, RATE_SAMPLE_MS),
+    [snapshot],
+  );
+
+  const byMinuteCandle = useMemo(
+    () => candlesBy(pace, (tick) => minuteKey(tick.at, snapshot.timeZone)),
+    [pace, snapshot.timeZone],
+  );
+
+  const byHourCandle = useMemo(
+    () => candlesBy(pace, (tick) => hourKey(tick.at, snapshot.timeZone)),
+    [pace, snapshot.timeZone],
+  );
+
   const tabs: { id: Tab; label: string; hint: string }[] = [
+    { id: 'candles', label: 'Candles', hint: `${snapshot.byDayCandle.length}` },
     { id: 'days', label: 'Days', hint: `${byDay.length}` },
     { id: 'models', label: 'Models', hint: `${byModel.length}` },
     { id: 'projects', label: 'Projects', hint: `${byProject.length}` },
@@ -212,11 +258,70 @@ export function Ticker({ snapshot }: { snapshot: UsageSnapshot }) {
           </p>
         </div>
 
+        <div className="momentum">
+          <div
+            className={`combo${combo > 1 ? ' live' : ''}${tier ? ` rank-${tier.rank}` : ''}`}
+          >
+            <p className="marquee-label">Combo</p>
+
+            {/*
+              The gap, drawn as the clock it is: the ring is what is left of
+              the two minutes before a pause breaks the run, and it drains
+              whether or not anything else on the board moves.
+            */}
+            <div
+              className="combo-dial"
+              style={{ '--held': holding } as CSSProperties}
+              role="img"
+              aria-label={`combo of ${combo}, ${Math.ceil(held / 1000)} seconds left`}
+            >
+              <div className="combo-face">
+                <span className="combo-value">×{count(combo)}</span>
+                <span className="combo-left">{held > 0 ? `${Math.ceil(held / 1000)}s` : 'cold'}</span>
+              </div>
+            </div>
+
+            <p className="combo-tier">{tier ? tier.name : 'no run yet'}</p>
+
+            {/* The ladder, so the next rung is a thing you can see coming. */}
+            <ol className="combo-rungs">
+              {COMBO_TIERS.map((rung) => (
+                <li
+                  key={rung.rank}
+                  className={tier && tier.rank >= rung.rank ? 'lit' : ''}
+                  title={`${rung.name} at ${rung.from}`}
+                />
+              ))}
+            </ol>
+
+            <p className="combo-foot">
+              {nextTier ? (
+                <>
+                  <b>{count(nextTier.toGo)}</b> more to {nextTier.name}
+                </>
+              ) : (
+                <>best ×{count(snapshot.bestCombo)}</>
+              )}
+            </p>
+          </div>
+
+          <div className="level">
+            <p className="marquee-label">Level</p>
+            <p className="level-value">{level.level}</p>
+            <div className="level-bar" aria-hidden>
+              <span style={{ width: `${(level.into / level.span) * 100}%` }} />
+            </div>
+            <p className="level-foot">
+              <b>{compact(level.span - level.into)}</b> to {level.level + 1}
+            </p>
+          </div>
+        </div>
+
         <dl className="marquee-stats">
           <div>
             <dt>Rate</dt>
             <dd>
-              {count(Math.round(rate))} <small>tok/s</small>
+              {count(Math.round(rate))} <small>tok/min</small>
             </dd>
           </div>
           <div>
@@ -226,21 +331,6 @@ export function Ticker({ snapshot }: { snapshot: UsageSnapshot }) {
           <div>
             <dt>Turns</dt>
             <dd>{count(today?.totals.turns ?? 0)}</dd>
-          </div>
-          <div>
-            <dt>Combo</dt>
-            <dd>
-              ×{count(combo)} {tier ? <small>{tier.name.toLowerCase()}</small> : null}
-            </dd>
-          </div>
-          <div>
-            <dt>Level</dt>
-            <dd>
-              {level.level}{' '}
-              <small>
-                {compact(level.into)} / {compact(level.span)}
-              </small>
-            </dd>
           </div>
           <div>
             <dt>Streak</dt>
@@ -338,6 +428,39 @@ export function Ticker({ snapshot }: { snapshot: UsageSnapshot }) {
           </nav>
 
           <div className="detail-body">
+            {tab === 'candles' ? (
+              <div className="candles-pane">
+                <nav className="grain" role="tablist">
+                  {(['day', 'hour', 'minute'] as const).map((id) => (
+                    <button
+                      key={id}
+                      role="tab"
+                      aria-selected={grain === id}
+                      className={grain === id ? 'grain-tab on' : 'grain-tab'}
+                      onClick={() => setGrain(id)}
+                    >
+                      {id === 'day' ? 'Daily' : id === 'hour' ? 'Hourly' : '1 min'}
+                    </button>
+                  ))}
+                  <span className="grain-note">
+                    {grain === 'day'
+                      ? 'every day on record'
+                      : `the last ${count(snapshot.recent.length)} turns${
+                          grain === 'minute' ? ' · only minutes with turns in them' : ''
+                        }`}
+                  </span>
+                </nav>
+
+                {grain === 'day' ? (
+                  <Candles candles={snapshot.byDayCandle} label={shortDay} />
+                ) : grain === 'hour' ? (
+                  <Candles candles={byHourCandle} label={shortHour} />
+                ) : (
+                  <Candles candles={byMinuteCandle} label={shortMinute} />
+                )}
+              </div>
+            ) : null}
+
             {tab === 'days' ? <DailyBars buckets={byDay.slice(-TREND_DAYS)} /> : null}
             {tab === 'models' ? <Breakdown items={toItems(byModel, modelColour)} /> : null}
             {tab === 'projects' ? (

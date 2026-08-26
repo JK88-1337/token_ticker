@@ -128,7 +128,7 @@ export function App() {
         <span className="hud-zone">unofficial · {snapshot.timeZone}</span>
       </header>
 
-      {skin === 'farm' ? <Farm snapshot={snapshot} /> : <Ticker snapshot={snapshot} />}
+      {skin === 'farm' ? <Farm snapshot={snapshot} signal={signal} /> : <Ticker snapshot={snapshot} />}
     </div>
   );
 }

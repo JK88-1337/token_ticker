@@ -70,3 +70,70 @@ export function projectName(path: string): string {
   const parts = path.split(/[\\/]/).filter(Boolean);
   return parts[parts.length - 1] ?? path;
 }
+
+const hourFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * The local hour a turn belongs to, as `YYYY-MM-DD HH`.
+ *
+ * Sortable as a string, and bucketed in the viewer's zone for the same reason
+ * days are — "this afternoon" is a question about the local clock.
+ */
+export function hourKey(timestamp: string, timeZone: string): string {
+  let formatter = hourFormatters.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      // h23 rather than `hour12: false`, which is allowed to render midnight
+      // as 24 — an hour that would sort after 23 while belonging before it.
+      hourCycle: 'h23',
+    });
+    hourFormatters.set(timeZone, formatter);
+  }
+
+  // en-CA renders `2026-08-25, 20`; the comma is the only thing in the way.
+  return formatter.format(new Date(timestamp)).replace(', ', ' ');
+}
+
+const minuteFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * The local minute a turn belongs to, as `YYYY-MM-DD HH:MM`.
+ *
+ * The finest bucket the ticker draws: at a minute a candle is close enough to
+ * live that a run of turns shows up as it happens, and still coarse enough
+ * that one turn does not become one candle.
+ */
+export function minuteKey(timestamp: string, timeZone: string): string {
+  let formatter = minuteFormatters.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      // h23 for the same reason the hour key uses it: midnight must sort as
+      // 00 at the head of its day, not as 24 at the tail of the one before.
+      hourCycle: 'h23',
+    });
+    minuteFormatters.set(timeZone, formatter);
+  }
+
+  return formatter.format(new Date(timestamp)).replace(', ', ' ');
+}
+
+/** `18:07` — an axis tick for a minute key. */
+export function shortMinute(key: string): string {
+  return key.slice(-5);
+}
+
+/** `20:00` — an axis tick for an hour key. */
+export function shortHour(key: string): string {
+  return `${key.slice(-2)}:00`;
+}

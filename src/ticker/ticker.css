@@ -18,7 +18,7 @@
 
 .marquee {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 28px;
   padding: 16px 20px 18px;
@@ -63,8 +63,8 @@
 .marquee-stats {
   margin: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(96px, auto));
-  gap: 14px 26px;
+  grid-template-columns: repeat(2, minmax(92px, auto));
+  gap: 12px 22px;
 }
 
 .marquee-stats div {
@@ -93,6 +93,219 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
+}
+
+/* ---- Combo and level ---------------------------------------------------- */
+
+/*
+ * The two figures the board is loudest about, and in that order: a combo is
+ * live and can be lost in the next two minutes, a level is banked and only
+ * ever goes up. So the combo gets the dial, the accent and the only movement
+ * on the board; the level gets the same shape, quieter.
+ */
+.momentum {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.combo,
+.level {
+  display: grid;
+  align-content: start;
+  padding: 10px 14px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--page);
+}
+
+.combo {
+  --combo-accent: var(--baseline);
+  justify-items: center;
+  min-width: 172px;
+  border-left: 3px solid var(--combo-accent);
+}
+
+.combo .marquee-label {
+  justify-self: start;
+}
+
+.combo.live {
+  background: color-mix(in oklab, var(--combo-accent) 7%, var(--page));
+}
+
+.combo.rank-1 {
+  --combo-accent: var(--series-1);
+}
+
+.combo.rank-2 {
+  --combo-accent: var(--series-3);
+}
+
+.combo.rank-3 {
+  --combo-accent: var(--series-4);
+}
+
+.combo.rank-4 {
+  --combo-accent: var(--series-2);
+}
+
+.combo.rank-5 {
+  --combo-accent: var(--series-8);
+}
+
+/*
+ * Registered so the ring can be transitioned at all: a conic-gradient is not
+ * an interpolatable value, but the number driving one is.
+ */
+@property --held {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
+.combo-dial {
+  --held: 0;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  margin: 9px 0 2px;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--combo-accent) calc(var(--held) * 360deg),
+    var(--gridline) calc(var(--held) * 360deg)
+  );
+  /* One second, linear, matching the board's own tick: the ring slides. */
+  transition: --held 1s linear;
+}
+
+.combo.rank-3 .combo-dial,
+.combo.rank-4 .combo-dial,
+.combo.rank-5 .combo-dial {
+  box-shadow: 0 0 14px color-mix(in oklab, var(--combo-accent) 45%, transparent);
+}
+
+.combo-face {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 1px;
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
+  background: var(--page);
+}
+
+.combo.live .combo-face {
+  background: color-mix(in oklab, var(--combo-accent) 7%, var(--page));
+}
+
+.combo-value {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--combo-accent);
+}
+
+.combo:not(.live) .combo-value {
+  color: var(--text-muted);
+}
+
+.combo-left {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.combo-tier {
+  margin: 6px 0 0;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--combo-accent);
+}
+
+.combo:not(.live) .combo-tier {
+  color: var(--text-muted);
+}
+
+/* The ladder: five rungs, lit up to the one being stood on. */
+.combo-rungs {
+  list-style: none;
+  display: flex;
+  gap: 5px;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.combo-rungs li {
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--gridline);
+}
+
+.combo-rungs li.lit {
+  background: var(--combo-accent);
+}
+
+.combo-foot,
+.level-foot {
+  margin: 8px 0 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.combo-foot b,
+.level-foot b {
+  color: var(--text-secondary);
+  font-weight: 750;
+}
+
+/* Level: banked, so no dial, no accent and nothing that moves. */
+.level {
+  min-width: 132px;
+}
+
+.level-value {
+  margin: 6px 0 0;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.level-bar {
+  margin-top: 12px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--gridline);
+  overflow: hidden;
+}
+
+.level-bar span {
+  display: block;
+  height: 100%;
+  background: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .combo-dial {
+    transition: none;
+  }
 }
 
 /* ---- Split-flap --------------------------------------------------------- */
@@ -532,9 +745,24 @@
   }
 }
 
+@media (max-width: 1180px) {
+  .marquee {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .momentum {
+    grid-column: 1 / -1;
+    grid-template-columns: auto auto 1fr;
+  }
+}
+
 @media (max-width: 900px) {
   .marquee {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .momentum {
+    grid-column: auto;
   }
 
   .ticker-board {
@@ -544,4 +772,247 @@
       'quotes'
       'detail';
   }
+}
+
+/* ---- Candles ------------------------------------------------------------ */
+
+.candles-pane {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+  min-height: 0;
+  flex: 1;
+}
+
+.grain {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.grain-tab {
+  appearance: none;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 3px 10px 4px;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.grain-tab.on {
+  color: var(--page);
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+}
+
+.grain-note {
+  margin-left: 8px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.candles {
+  position: relative;
+  display: grid;
+  /* Plot, then volume, then labels: the volume strip is deliberately small —
+     it is context for the candle above it, not a second chart. */
+  grid-template-rows: minmax(0, 1fr) 22px auto auto;
+  gap: 4px;
+  min-height: 0;
+}
+
+.candles-frame {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  min-height: 0;
+}
+
+.candles-axis {
+  position: relative;
+}
+
+.candles-axis span {
+  position: absolute;
+  right: 6px;
+  transform: translateY(-50%);
+  font-size: 9px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.candles-plot {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  border-left: 1px solid var(--gridline);
+  border-bottom: 1px solid var(--baseline);
+  min-height: 0;
+}
+
+.candles-rule {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--gridline);
+}
+
+.candle {
+  position: relative;
+  flex: 1;
+  min-width: 3px;
+  cursor: default;
+}
+
+.candle:hover {
+  background: color-mix(in oklab, var(--text-primary) 5%, transparent);
+}
+
+/* The wick is the day's range; the body is where it opened and closed. */
+.candle-wick {
+  position: absolute;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: color-mix(in oklab, var(--status-good) 55%, var(--text-secondary));
+}
+
+.candle-body {
+  position: absolute;
+  left: 50%;
+  /* Capped rather than a share of the column: with a fortnight on screen a
+     percentage body is a hundred pixels wide and the chart reads as a stack
+     of blocks with the wicks lost inside them. */
+  width: min(70%, 22px);
+  transform: translateX(-50%);
+  /* A period that opened and closed on the same figure still has to be
+     visible, so a bodyless candle is drawn as a rule. */
+  min-height: 2px;
+  background: var(--status-good);
+}
+
+.candle-body.down {
+  background: var(--status-critical);
+}
+
+.candle-body.flat {
+  background: var(--text-secondary);
+}
+
+.candle-wick.down {
+  background: color-mix(in oklab, var(--status-critical) 60%, var(--text-muted));
+}
+
+/* The normal to read the candles against, and where the pace stands now. */
+.candles-normal {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed var(--bracket);
+  pointer-events: none;
+}
+
+.candles-normal i {
+  position: absolute;
+  left: 2px;
+  top: -12px;
+  padding-right: 4px;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--surface);
+  font-variant-numeric: tabular-nums;
+}
+
+.candles-now {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-size: 9px;
+  font-weight: 750;
+  color: var(--page);
+  background: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.candles-now.up {
+  background: var(--status-good);
+}
+
+.candles-now.down {
+  background: var(--status-critical);
+}
+
+.candles-caption b.up {
+  color: var(--status-good);
+}
+
+.candles-caption b.down {
+  color: var(--status-critical);
+}
+
+.candles-volume {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding-left: 34px;
+  margin-top: 3px;
+  border-bottom: 1px solid var(--gridline);
+}
+
+.volume-col {
+  flex: 1;
+  min-width: 3px;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.volume-bar {
+  width: min(70%, 22px);
+  margin: 0 auto;
+  min-height: 1px;
+  background: color-mix(in oklab, var(--status-good) 45%, transparent);
+}
+
+.volume-bar.down {
+  background: color-mix(in oklab, var(--status-critical) 45%, transparent);
+}
+
+.volume-bar.flat {
+  background: var(--gridline);
+}
+
+.candles-labels {
+  display: flex;
+  gap: 2px;
+  padding-left: 34px;
+}
+
+.candles-labels span {
+  flex: 1;
+  min-width: 0;
+  font-size: 9px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.candles-caption {
+  margin: 2px 0 0 34px;
 }

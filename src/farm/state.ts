@@ -5,17 +5,24 @@
  * allowed returns the state it was given rather than throwing or half-
  * applying. The view can therefore offer a button and let this decide, and
  * the invariants that keep a player from getting stranded — coins never
- * negative, the wheel never charging coins, one seed always free — hold no
- * matter what the view does.
+ * negative, one seed always free — hold no matter what the view does. The
+ * wheel can take a stake; it cannot take the last move on the board.
  */
 
 import {
   FREE_SEED,
+  MIN_BET,
   PLOTS,
+  POCKETS,
   growth,
+  isBet,
+  shareOut,
   seedById,
+  settleBet,
   spinOutcome,
   spinsEarned,
+  type Bet,
+  type PocketColor,
   type Seed,
 } from './economy.js';
 
@@ -24,24 +31,28 @@ export interface Plot {
   /** What is in the ground, or null for bare earth. */
   seedId: string | null;
   /**
-   * Lifetime work tokens at the moment it was sown.
+   * Work tokens this plot has been credited since it was sown.
    *
-   * The clock a crop grows on is a token count, not a timestamp: it only
-   * moves when work actually happens, and it cannot be wound forward by
-   * changing the system clock.
+   * Credited, not elapsed: the field shares each new batch of work between
+   * the plots that are in the ground, so this rises more slowly the fuller
+   * the field is. It is a token count rather than a timestamp — it only
+   * moves when work actually happens, and no system clock can wind it on.
    */
-  plantedAtWork: number;
+  grownWork: number;
 }
 
 /** What the last spin came to, kept so a reload does not lose the reveal. */
 export interface SpinResult {
   index: number;
-  slot: number;
-  coins: number;
+  pocket: number;
+  color: PocketColor;
+  bet: Bet;
+  stake: number;
+  delta: number;
 }
 
 export interface FarmState {
-  version: 1;
+  version: 2;
   /**
    * Fixed at creation, and never changed.
    *
@@ -55,20 +66,35 @@ export interface FarmState {
   spinsUsed: number;
   plots: Plot[];
   trinkets: string[];
+  /** Seed ids taken off the field at least once. A sticker book, not a bonus. */
+  harvested: string[];
+  /**
+   * Lifetime work tokens at the last share-out.
+   *
+   * What the field has already been paid for. Work done while the field was
+   * bare moves this on without being credited anywhere: an empty field banks
+   * nothing, so leaving the plots idle is a cost, not a saving.
+   */
+  workMark: number;
+  /** Work tokens that would not divide between the plots, waiting for the next deal. */
+  workCarry: number;
   lastSpin: SpinResult | null;
 }
 
-const bare = (): Plot => ({ seedId: null, plantedAtWork: 0 });
+const bare = (): Plot => ({ seedId: null, grownWork: 0 });
 
 /** A fresh farm. The seed is random; nothing else about a new save is. */
 export function newFarm(random: () => number = Math.random): FarmState {
   return {
-    version: 1,
+    version: 2,
     spinSeed: Math.floor(random() * 0xffff_ffff).toString(36) + Date.now().toString(36),
     coins: 0,
     spinsUsed: 0,
     plots: Array.from({ length: PLOTS }, bare),
     trinkets: [],
+    harvested: [],
+    workMark: 0,
+    workCarry: 0,
     lastSpin: null,
   };
 }
@@ -85,16 +111,26 @@ export function sanitise(loaded: unknown, random: () => number = Math.random): F
   const fresh = newFarm(random);
   if (typeof loaded !== 'object' || loaded === null) return fresh;
 
-  const save = loaded as Partial<FarmState>;
-  if (save.version !== 1 || typeof save.spinSeed !== 'string' || save.spinSeed === '') {
+  const save = loaded as Omit<Partial<FarmState>, 'version'> & { version?: number };
+  if (
+    (save.version !== 1 && save.version !== 2) ||
+    typeof save.spinSeed !== 'string' ||
+    save.spinSeed === ''
+  ) {
     return fresh;
   }
 
-  const plots = Array.isArray(save.plots) ? save.plots.slice(0, PLOTS) : [];
+  // A save from before the field shared its work has no record of what any
+  // plot has been credited, and no mark to measure the next share from.
+  // Crediting it from a lifetime count would ripen the whole field at once,
+  // so its crops come back as bare earth. The coins, the album and the
+  // trinkets they paid for are the save, and those keep.
+  const plots =
+    save.version === 2 && Array.isArray(save.plots) ? save.plots.slice(0, PLOTS) : [];
   while (plots.length < PLOTS) plots.push(bare());
 
   return {
-    version: 1,
+    version: 2,
     spinSeed: save.spinSeed,
     coins: Math.max(0, Math.floor(Number(save.coins) || 0)),
     spinsUsed: Math.max(0, Math.floor(Number(save.spinsUsed) || 0)),
@@ -102,13 +138,48 @@ export function sanitise(loaded: unknown, random: () => number = Math.random): F
       const seedId = typeof plot?.seedId === 'string' && seedById(plot.seedId) ? plot.seedId : null;
       return {
         seedId,
-        plantedAtWork: seedId ? Math.max(0, Number(plot?.plantedAtWork) || 0) : 0,
+        grownWork: seedId ? Math.max(0, Math.floor(Number(plot?.grownWork) || 0)) : 0,
       };
     }),
     trinkets: Array.isArray(save.trinkets)
       ? save.trinkets.filter((id): id is string => typeof id === 'string')
       : [],
-    lastSpin: save.lastSpin ?? null,
+    harvested: Array.isArray(save.harvested)
+      ? save.harvested.filter((id): id is string => typeof id === 'string' && seedById(id) !== undefined)
+      : [],
+    workMark: save.version === 2 ? Math.max(0, Math.floor(Number(save.workMark) || 0)) : 0,
+    workCarry: save.version === 2 ? Math.max(0, Math.floor(Number(save.workCarry) || 0)) : 0,
+    lastSpin: readLastSpin(save.lastSpin),
+  };
+}
+
+function readLastSpin(loaded: unknown): SpinResult | null {
+  if (typeof loaded !== 'object' || loaded === null) return null;
+  const spin = loaded as Partial<SpinResult>;
+  const pocket = Math.floor(Number(spin.pocket));
+  const stake = Math.floor(Number(spin.stake));
+  const delta = Math.floor(Number(spin.delta));
+  const bet: unknown = spin.bet;
+  const color = spin.color;
+  if (
+    !Number.isFinite(pocket) ||
+    pocket < 0 ||
+    pocket >= POCKETS ||
+    !isBet(bet) ||
+    (color !== 'red' && color !== 'black' && color !== 'green') ||
+    !Number.isFinite(stake) ||
+    stake < MIN_BET ||
+    !Number.isFinite(delta)
+  ) {
+    return null;
+  }
+  return {
+    index: Math.max(0, Math.floor(Number(spin.index) || 0)),
+    pocket,
+    color,
+    bet,
+    stake,
+    delta,
   };
 }
 
@@ -118,6 +189,53 @@ export function spinsAvailable(state: FarmState, lifetimeTokens: number): number
 }
 
 /**
+ * Shares the work done since the last look out across the field.
+ *
+ * The single place growth comes from. Every plot in the ground takes an
+ * equal share of the new work, so a full field grows eight times more
+ * slowly per plot than a lone one — the same effort spread, never multiplied.
+ * What will not divide is carried to the next deal rather than dropped, or a
+ * field refreshed every second would never grow at all.
+ *
+ * A count that has gone backwards — a pruned transcript, a machine restored
+ * from a backup — credits nothing and simply re-marks where the field is up
+ * to.
+ */
+export function advance(state: FarmState, lifetimeWork: number): FarmState {
+  const seen = Math.max(0, Math.floor(lifetimeWork));
+  if (seen === state.workMark) return state;
+
+  const gained = Math.max(0, seen - state.workMark);
+  const sown = state.plots.filter((plot) => plot.seedId !== null).length;
+  if (sown === 0) return { ...state, workMark: seen, workCarry: 0 };
+
+  const { each, left } = shareOut(state.workCarry + gained, sown);
+
+  return {
+    ...state,
+    workMark: seen,
+    workCarry: left,
+    plots: state.plots.map((plot) =>
+      plot.seedId === null ? plot : { ...plot, grownWork: plot.grownWork + each },
+    ),
+  };
+}
+
+/**
+ * Takes on a save that grew somewhere else.
+ *
+ * A farm carries the token count it was last settled against, and that count
+ * means nothing on another machine: one with more tokens behind it would pay
+ * the whole difference into the field at once and ripen everything, and one
+ * with fewer would leave the field stuck. So the mark is moved to where this
+ * machine actually is, and the crops carry on from the growth they had.
+ */
+export function adopt(state: FarmState, lifetimeWork: number): FarmState {
+  return { ...state, workMark: Math.max(0, Math.floor(lifetimeWork)), workCarry: 0 };
+}
+
+/**
+ * Sows a plot, paying for the seed./**
  * Sows a plot, paying for the seed.
  *
  * Refused, with the state unchanged, if the plot is taken, the seed is not
@@ -130,14 +248,15 @@ export function plant(
   seedId: string,
   lifetimeWork: number,
 ): FarmState {
-  const plot = state.plots[plotIndex];
+  const settled = advance(state, lifetimeWork);
+  const plot = settled.plots[plotIndex];
   const seed = seedById(seedId);
-  if (!plot || plot.seedId !== null || !seed || state.coins < seed.price) return state;
+  if (!plot || plot.seedId !== null || !seed || settled.coins < seed.price) return state;
 
-  const plots = [...state.plots];
-  plots[plotIndex] = { seedId: seed.id, plantedAtWork: Math.max(0, lifetimeWork) };
+  const plots = [...settled.plots];
+  plots[plotIndex] = { seedId: seed.id, grownWork: 0 };
 
-  return { ...state, coins: state.coins - seed.price, plots };
+  return { ...settled, coins: settled.coins - seed.price, plots };
 }
 
 /** What is in a plot, if anything. */
@@ -153,37 +272,60 @@ export function plotSeed(plot: Plot): Seed | undefined {
  * it is a button.
  */
 export function harvest(state: FarmState, plotIndex: number, lifetimeWork: number): FarmState {
-  const plot = state.plots[plotIndex];
+  const settled = advance(state, lifetimeWork);
+  const plot = settled.plots[plotIndex];
   if (!plot) return state;
 
   const seed = plotSeed(plot);
-  if (!seed || growth(plot.plantedAtWork, seed, lifetimeWork) < 1) return state;
+  if (!seed || growth(plot.grownWork, seed) < 1) return state;
 
-  const plots = [...state.plots];
+  const plots = [...settled.plots];
   plots[plotIndex] = bare();
 
-  return { ...state, coins: state.coins + seed.yield, plots };
+  const harvested = settled.harvested.includes(seed.id)
+    ? settled.harvested
+    : [...settled.harvested, seed.id];
+
+  return { ...settled, coins: settled.coins + seed.yield, plots, harvested };
 }
 
 /**
  * Turns the wheel.
  *
- * Costs one spin and no coins, and the slot it lands in was decided when the
- * save was created. Refused when there is no spin to take, which is the only
- * thing that ever stops it — there is no stake to lose and no way to end a
- * spin poorer than it began.
+ * Costs one spin and a stake on anything the table takes — a colour, a
+ * parity, a half, a dozen, a column, or a single number at thirty-five to
+ * one. The pocket was decided when the save was created. Refused when there
+ * is no spin, the stake is not there, or the bet is not a wager: a turn can
+ * leave you poorer, but it cannot take coins below zero.
  */
-export function spin(state: FarmState, lifetimeTokens: number): FarmState {
+export function spin(
+  state: FarmState,
+  lifetimeTokens: number,
+  stake: number,
+  bet: Bet,
+): FarmState {
   if (spinsAvailable(state, lifetimeTokens) < 1) return state;
+  if (!isBet(bet)) return state;
+
+  const amount = Math.floor(stake);
+  if (amount < MIN_BET || amount > state.coins) return state;
 
   const index = state.spinsUsed;
-  const result = spinOutcome(state.spinSeed, index);
+  const landed = spinOutcome(state.spinSeed, index);
+  const delta = settleBet(bet, landed.pocket, amount);
 
   return {
     ...state,
-    coins: state.coins + result.coins,
+    coins: state.coins + delta,
     spinsUsed: index + 1,
-    lastSpin: { index, slot: result.slot, coins: result.coins },
+    lastSpin: {
+      index,
+      pocket: landed.pocket,
+      color: landed.color,
+      bet,
+      stake: amount,
+      delta,
+    },
   };
 }
 
@@ -205,8 +347,9 @@ export function hasMove(state: FarmState, lifetimeTokens: number, lifetimeWork: 
   if (state.plots.some((plot) => plot.seedId === null) && state.coins >= FREE_SEED.price) {
     return true;
   }
-  return state.plots.some((plot) => {
+  const settled = advance(state, lifetimeWork);
+  return settled.plots.some((plot) => {
     const seed = plotSeed(plot);
-    return seed !== undefined && growth(plot.plantedAtWork, seed, lifetimeWork) >= 1;
+    return seed !== undefined && growth(plot.grownWork, seed) >= 1;
   });
 }

@@ -1,3 +1,4 @@
+import { candlesBy, type Candle } from './candles.js';
 import {
   peakWindowTokens,
   totalTokens,
@@ -7,11 +8,24 @@ import {
   type PeakWindow,
   type WindowTotals,
 } from './limits.js';
-import { COMBO_GAP_MS, longestCombo, type SpendEvent } from './momentum.js';
+import {
+  COMBO_GAP_MS,
+  RATE_WINDOW_MS,
+  longestCombo,
+  rateSeries,
+  type SpendEvent,
+} from './momentum.js';
 import { priceRecord, type PricingTable } from './pricing.js';
 import type { UsageRecord } from './records.js';
 
-import { bucketBy, bucketByDay, totalUsage, type UsageBucket, type UsageTotals } from './summary.js';
+import {
+  bucketBy,
+  bucketByDay,
+  dayKey,
+  totalUsage,
+  type UsageBucket,
+  type UsageTotals,
+} from './summary.js';
 
 /** The rolling allowance window Claude Code calls a session. */
 export const SESSION_WINDOW_MS = 5 * 60 * 60 * 1000;
@@ -32,6 +46,14 @@ export interface UsageSnapshot {
   totals: UsageTotals;
   /** Oldest day first, so a trend reads left to right. */
   byDay: UsageBucket[];
+  /**
+   * The same days as open, high, low and close on the size of a turn.
+   *
+   * A different question from `byDay`, not a different rendering of it: that
+   * says how much a day came to, this says how the weight of a single turn
+   * moved through it. Oldest first.
+   */
+  byDayCandle: Candle[];
   /** Dearest first. */
   byModel: UsageBucket[];
   /** Dearest first. */
@@ -86,6 +108,13 @@ export function buildSnapshot(
     timeZone,
     totals: totalUsage(records, table),
     byDay: bucketByDay(records, table, timeZone),
+    byDayCandle: candlesBy(
+      rateSeries(
+        records.map((record) => ({ at: record.timestamp, tokens: totalTokens(record.tokens) })),
+        RATE_WINDOW_MS,
+      ),
+      (tick) => dayKey(tick.at, timeZone),
+    ),
     byModel: bucketBy(records, table, (record) => record.model).sort(byCost),
     byProject: bucketBy(records, table, (record) => record.projectPath).sort(byCost),
     recent: recentEvents(records, table),

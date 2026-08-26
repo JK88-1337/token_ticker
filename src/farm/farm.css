@@ -45,9 +45,14 @@
 
 .farm-body {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(240px, 0.85fr) minmax(230px, 0.8fr);
+  grid-template-columns: minmax(0, 1.5fr) minmax(250px, 0.85fr);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
   min-height: 0;
+}
+
+.field {
+  grid-row: 1 / -1;
 }
 
 .field,
@@ -65,21 +70,49 @@
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
-.ornaments {
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 14px;
-  margin: 0;
-  padding: 10px 14px 12px;
-  border-top: 1px solid var(--gridline);
-  font-size: 11px;
-  color: var(--text-muted);
+.scene {
+  position: relative;
+  min-height: 0;
+  display: grid;
 }
 
-/* Header fixed, everything under it scrolls: the odds table and the shop
-   both grow past a short window, and a panel that clips them silently is
-   worse than one that scrolls. */
+.prop {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.prop.fence {
+  inset: 6px;
+  border: 3px solid color-mix(in oklab, var(--series-2) 55%, var(--baseline));
+  border-radius: 6px;
+  font-size: 0;
+}
+
+.prop.scarecrow {
+  top: 10px;
+  left: 14px;
+}
+
+.prop.pond {
+  bottom: 10px;
+  left: 14px;
+}
+
+.prop.windmill {
+  top: 10px;
+  right: 16px;
+  animation: mill-turn linear infinite;
+}
+
+@keyframes mill-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .panel-body {
   min-height: 0;
   overflow: auto;
@@ -141,16 +174,58 @@
   background: color-mix(in oklab, var(--series-3) 7%, var(--surface));
 }
 
+.plot.working:not(.ripe) .plot-art {
+  animation: work-sway 1.4s ease-in-out infinite;
+}
+
 .plot.ripe {
   border-color: var(--status-good);
-  background: color-mix(in oklab, var(--status-good) 12%, var(--surface));
+  background: color-mix(in oklab, var(--status-good) 18%, var(--surface));
   color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--status-good) 40%, transparent);
 }
 
 .plot-art {
-  font-size: 30px;
-  line-height: 1.1;
+  display: grid;
+  place-items: center;
+  min-height: 32px;
   align-self: center;
+}
+
+.px-icon {
+  --p-k: var(--text-primary);
+  --p-g: var(--series-3);
+  --p-G: var(--series-6);
+  --p-y: var(--series-4);
+  --p-r: var(--series-8);
+  --p-o: var(--series-2);
+  --p-s: var(--baseline);
+  --p-w: #a56b32;
+  --p-b: var(--series-1);
+  --p-W: var(--surface);
+  --p-p: var(--series-5);
+  image-rendering: pixelated;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+.coins,
+.seed-price,
+.seed-note,
+.plot-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+dd.coins {
+  display: flex;
+}
+
+.shop .field-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .plot.ripe .plot-art {
@@ -202,52 +277,288 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ---- The save ------------------------------------------------------------*/
+
+.keeping {
+  border-top: 1px solid var(--gridline);
+  padding: 8px 14px 12px;
+}
+
+.keeping summary {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.keeping .caption {
+  margin: 8px 0;
+}
+
+.save-text {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-secondary);
+  background: var(--page);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  resize: vertical;
+}
+
+.save-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.save-row button {
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-primary);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.save-row button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.save-note {
+  margin: 8px 0 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
 /* ---- Wheel ---------------------------------------------------------------*/
 
 .wheel-wrap {
   position: relative;
   display: grid;
   place-items: center;
-  padding: 16px 0 6px;
+  padding: 14px 0 4px;
+}
+
+.wheel-panel {
+  --pocket-red: #c41e3a;
+  --pocket-black: #141414;
+  --pocket-green: #0c7a2f;
+  --felt: #0e5c30;
+}
+
+/* The bowl the wheel head sits in: rim, then pockets, then the hub. */
+.bowl {
+  position: relative;
+  width: min(232px, 78%);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 18%, #7a5533, #33220f 72%);
+  box-shadow:
+    inset 0 2px 8px rgba(0, 0, 0, 0.55),
+    0 6px 18px rgba(0, 0, 0, 0.3);
 }
 
 .wheel {
-  width: min(190px, 60%);
-  aspect-ratio: 1;
+  position: absolute;
+  inset: 11px;
   border-radius: 50%;
-  border: 2px solid var(--border);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.5);
   transition-property: transform;
   /* Fast away, long settle — the last few degrees are the whole point. */
   transition-timing-function: cubic-bezier(0.15, 0.85, 0.12, 1);
 }
 
-.wheel-pointer {
+/* Numbers ride the wheel, printed radially the way they are on a real head. */
+.pocket-number {
   position: absolute;
-  top: 6px;
-  width: 0;
-  height: 0;
-  border-left: 7px solid transparent;
-  border-right: 7px solid transparent;
-  border-top: 12px solid var(--text-primary);
-  z-index: 2;
+  left: 50%;
+  top: 3%;
+  width: 10px;
+  height: 47%;
+  margin-left: -5px;
+  transform-origin: bottom center;
+  text-align: center;
+  font-size: 7px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* The dividers between pockets. 360 / 37 pockets = 9.7297deg apart. */
+.frets {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(255, 255, 255, 0.35) 0deg 0.5deg,
+    transparent 0.5deg 9.7297deg
+  );
+  pointer-events: none;
+}
+
+/*
+ * The ball, on an arm that turns against the wheel.
+ *
+ * It rides the outer track while the wheel is turning and drops into the
+ * pocket a moment after it stops, which is the order a real ball does it in.
+ */
+.ball-arm {
+  position: absolute;
+  inset: 0;
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.12, 0.8, 0.1, 1);
+  pointer-events: none;
+}
+
+.ball {
+  position: absolute;
+  left: 50%;
+  top: 13%;
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 30%, #fff, #a8a8a8 70%);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  transition: top 600ms ease-out;
+}
+
+.wheel-wrap.turning .ball {
+  top: 2.5%;
+  transition: top 350ms ease-in;
 }
 
 .wheel-hub {
   position: absolute;
   display: grid;
   place-items: center;
-  width: 62px;
-  height: 62px;
+  width: 34%;
+  height: 34%;
   border-radius: 50%;
   background: var(--surface);
-  border: 1px solid var(--border);
-  font-size: 13px;
+  border: 2px solid var(--border);
+  font-size: 14px;
   font-weight: 750;
   font-variant-numeric: tabular-nums;
 }
 
+.wheel-hub.red {
+  border-color: var(--pocket-red);
+}
+
+.wheel-hub.black {
+  border-color: var(--pocket-black);
+}
+
+.wheel-hub.green {
+  border-color: var(--pocket-green);
+}
+
+.reveal {
+  margin: 8px 14px 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.reveal.won {
+  color: var(--series-3);
+}
+
+.reveal.lost {
+  color: var(--series-8);
+}
+
+/* ---- Felt ----------------------------------------------------------------*/
+
+.felt {
+  display: grid;
+  gap: 3px;
+  margin: 10px 12px 0;
+  padding: 5px;
+  border-radius: 4px;
+  background: var(--felt);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.felt-grid {
+  display: grid;
+  grid-template-columns: 1.5fr repeat(12, 1fr) 1.2fr;
+  gap: 2px;
+}
+
+.felt-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 2px;
+}
+
+.cell {
+  padding: 4px 0;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 2px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.cell.red {
+  background: var(--pocket-red);
+}
+
+.cell.black {
+  background: var(--pocket-black);
+}
+
+.cell.green {
+  background: var(--pocket-green);
+}
+
+.cell.on {
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 3px rgba(0, 0, 0, 0.4);
+}
+
+.cell:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .spin {
-  margin: 4px 14px 0;
+  margin: 8px 14px 0;
   padding: 10px 14px;
   font: inherit;
   font-size: 12px;
@@ -265,6 +576,78 @@
   cursor: not-allowed;
   color: var(--text-muted);
   background: var(--gridline);
+}
+
+.chips {
+  display: flex;
+  gap: 6px;
+  margin: 8px 14px 0;
+}
+
+.chip {
+  flex: 1;
+  padding: 7px 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.chip {
+  color: var(--text-primary);
+  background: none;
+  border: 1px solid var(--border);
+}
+
+.chip.on {
+  border-color: var(--text-primary);
+  background: color-mix(in oklab, var(--text-primary) 6%, transparent);
+}
+
+.chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.almanac {
+  list-style: none;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--gridline);
+}
+
+.almanac li {
+  opacity: 0.28;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.almanac li.got {
+  opacity: 1;
+}
+
+.farm.hot .field {
+  background: color-mix(in oklab, var(--series-2) 8%, var(--surface));
+}
+
+.farm.weather-idle .plot.sown {
+  filter: saturate(0.75);
+}
+
+@keyframes work-sway {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
 }
 
 .wheel-panel .caption,
@@ -321,7 +704,7 @@
 .trinket {
   width: 100%;
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
   align-items: baseline;
   gap: 4px 8px;
   padding: 7px 9px;
@@ -356,7 +739,14 @@
 }
 
 .seed-art {
-  font-size: 18px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+}
+
+.farm .seed,
+.farm .trinket {
+  align-items: center;
 }
 
 .seed-name {
@@ -378,21 +768,26 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wheel {
+  .wheel,
+  .ball-arm,
+  .ball {
     transition: none;
   }
 
-  .plot.ripe .plot-art {
+  .plot.ripe .plot-art,
+  .plot.working:not(.ripe) .plot-art,
+  .prop.windmill {
     animation: none;
   }
 }
 
 @media (max-width: 1100px) {
   .farm-body {
-    grid-template-columns: minmax(0, 1fr) minmax(220px, 0.8fr);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
   }
 
-  .shop {
-    grid-column: 1 / -1;
+  .field {
+    grid-row: auto;
   }
 }
